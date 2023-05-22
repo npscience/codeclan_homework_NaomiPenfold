@@ -1,0 +1,6 @@
+---
+title: "Yet Another R Notebook"
+output: html_notebook
+---
+
+YARN. Maybe this is why it's called knitting.
