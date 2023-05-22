@@ -1,0 +1,11 @@
+---
+title: "Day 1's R Notebook"
+output: html_notebook
+---
+
+My notebook for homework day 1.
+
+```{r}
+# a code chunk!
+```
+
