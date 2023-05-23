@@ -1,0 +1,190 @@
+---
+title: "w1 d2 homework"
+output: html_notebook
+---
+
+```{r}
+library(CodeClanData)
+library(dplyr)
+library(tidyverse)
+```
+
+```{r}
+drinks_content
+```
+## Question 1
+*Task: Load in the dataset and have a look at it. What are the dimensions, variable types, variable names, etc.?*
+
+First, get a feel of what's in the data. Note, need to load dplyr package to use glimpse function.
+```{r}
+glimpse(drinks_content)
+View(drinks_content)
+```
+
+18 variables
+242 observations
+
+Data contains: type of drink, it's name, how it's prepared (long, short, type of milk), the numeric value for the number of calories it contains, and some nutritional content information. 
+
+Notes:
+- The nutritional content information at bottom has character values but is expressing things we might expect to be numeric (number values, percentages) - watch out!
+- View(data) is a useful way to browse through the data frame, shows more of the actual values than the glimpse function.
+
+## Question 2.
+*Task: Let’s first investigate the calories of different drinks. Select the variables Beverage_category, Beverage, Beverage prep and Calories from your data. Since we are interested in the calorie content, check if there are any NA values in the data, and drop them if there are.*
+
+```{r}
+# first check if any NAs in Calories
+sum(is.na(drinks_content$Calories)) # returns 0, so no need to remove any in next step
+```
+
+```{r}
+# create subset of data with specified columns
+drinks_subset <- ( # store this subset of data as variable to use in this session
+  drinks_content %>% 
+  select(Beverage_category, Beverage, Beverage_prep, Calories) )
+View(drinks_subset) # view the subset in RStudio to check
+```
+
+## Question 3.
+*Task: Create a new variable (column) called calorie_diff, which stores the difference between 135 calories (135 calories = 10 cubes of sugar!) and the calories in each drink. (hint: you’ll want to subtract 135 from the calories to see which drink have more or less than 10 cups of sugar).*
+
+```{r}
+  drinks_subset %>% 
+  mutate(calorie_diff = Calories - 135, .after = Calories)
+ # not assigning this to a variable because not using it again
+```
+
+## Question 4.
+*Task: Summarise the mean number of calories in each beverage_category. Which 3 category of drinks have the most calories? Which 3 drinks have the least? Write a small summary of your findings.*
+
+```{r}
+drinks_subset %>% 
+  group_by(Beverage_category) %>% 
+  summarise(mean_calories = mean(Calories, na.rm = TRUE)) %>% # strictly don't need na.rm = TRUE because we know there are 0 NAs in Calories, but using it as good practice
+  arrange(mean_calories) # to find the top and bottom beverages by mean calories
+```
+Summary: The lowest calorie option (by category) is Coffee (with almost no calories), followed by Shaken Iced Beverages and Classic Espresso Drinks (110-140 calories on average within each category). The highest calorie categories is Smoothies with on average 282 calories per beverage and the next highest-calories categories to complete the top 3 are Frappuccino Blended Coffee (mean = 277 calories), and Signature Espresso Drinks (mean = 250 calories).
+Note: we have not interrogated the spread of the calorie data within each category, so we do not know how representative these means are of the total data.
+
+## Question 5.
+*Task: Let’s look at this a different way. What is the average number of calories in each Beverage_prep type?*
+
+```{r}
+drinks_subset %>% 
+  group_by(Beverage_prep) %>% 
+  summarise(mean_cals = mean(Calories, na.rm = TRUE)) %>%
+  arrange(mean_cals)
+```
+
+When looking by beveerage prep, the most calorific preparation is to add Grande Nonfat milk whilst the least calorie-adding option is to have a solo. The lowest means look to be all sizes (Solo, Doppio, Short, Tall, Grande) while the rest are with some kind of milk.
+
+## Question 6.
+*Task: Which Beverage_prep type contains more than the average calories of all drinks?*
+
+```{r}
+# First, find the mean across all dataset and call it mean_cals_all
+mean_cals_all <- (
+  drinks_subset %>% 
+    summarise(mean_cals_all = mean(Calories, na.rm = TRUE)) %>% 
+    pull() # output it as a value (dbl)
+) 
+# mean_cals_all # run this to display the result (or find it listed in environment)
+# Note: this shows mean Calories across all observations is 193.8719.
+
+# Next, find the mean for each prep type, filter for those higher than the average mean, and pull out the prep type names
+drinks_subset %>% 
+  group_by(Beverage_prep) %>% 
+  summarise(mean_cals = mean(Calories, na.rm = TRUE)) %>% 
+  filter(mean_cals > mean_cals_all) %>% 
+  pull(Beverage_prep)
+```
+
+There are five beverage prep types for which their drinks are (on average) higher in calories than the average calorie count of all Starbucks drinks: Whole Milk, Venti Nonfat Milk, 2% Milk, Grande Nonfat Milk, and Soymilk. These are all add-milk options in prep type.
+
+#### Less efficient solution to Q6
+```{r eval = FALSE}
+# THIS IS Q6 SOLUTION but a less efficient way, includes arranging by mean cals within each bev prep type, and an extra step to filter by a logical value.
+# First, find the mean across all dataset and call it mean_cals_all
+mean_cals_all <- (
+  drinks_subset %>% 
+    summarise(mean_cals_all = mean(Calories, na.rm = TRUE)) %>% 
+    pull() # output it as a value (dbl)
+) 
+# mean_cals_all # run this to display the result (or find it listed in environment)
+# Note: this shows mean Calories across all observations is 193.8719.
+
+# Next, summarise the data by prep type, find mean for each type, and arrange with highest mean first
+drinks_subset %>% 
+  group_by(Beverage_prep) %>% 
+  summarise(mean_cals = mean(Calories, na.rm = TRUE)) %>% 
+  arrange(desc(mean_cals)) %>% 
+  # Find which prep types have calories higher than the overall average using a logical statement and the stored mean_cals_all variable from earlier.
+  mutate(high_cal = mean_cals > mean_cals_all) %>%  # the TRUES show the bev prep type with higher than average calories, there are 5 answers here.
+  # Finally, pull these 5 bev type names out using filter and pull
+  filter(high_cal == TRUE) %>% 
+  pull(Beverage_prep)
+```
+
+#### Workings / incorrect approaches to Q6:
+I found this Q tricky because it requires taking multiple means / knowing the right order in which to do this to not fudge the maths. We have individual observations, for which we can find the average calories of any drink. To find how the beverage_prep type influences whether the drink is higher/lower than average calories, we could:
+(a) first look at each drink's difference from mean calories (of all drinks) and then look at the mean diff within each beverage type; OR
+(b) first find the average calories by beverage type, then subtract the average calories of any drink, and see the different.
+
+Approach (a) is noted below, but incorrect.
+
+Are these approaches meaningfully different? Yes, it matters how you take the mean of means. If I take the means within each Bev type, and then take the mean of these means as an overall mean (output = 134... [shown in a code chunk below]) - this is not the same as taking the mean across the whole dataset (output = 192...).
+
+So, first find the mean of all drinks (192...), and assign it as a variable. Then use this to create a diff column once I've summarised the data by bev_type and found means for each category.
+```{r eval = FALSE}
+# THIS APPROACH IS NOT CORRECT, keeping in for my notes - this is approach(a) as noted above.
+drinks_subset %>% 
+  mutate(mean_cals = mean(Calories, na.rm = TRUE)) %>% # first, add a column containing the mean calories across the whole dataset. Note: I'm keeping the na.rm in as good practice, not specifying before/after because subset ends with Calories so new column will automatically be after Calories. Check: mean_cals = 193... which is in the right range given previous results.
+  mutate(diff_mean_cals = Calories - mean_cals) %>% # calculate diff from mean for each Calories value and add as a column 
+  arrange(desc(diff_mean_cals)) %>% # arrange in descending order to see highest (above-mean) difference first
+  group_by(Beverage_prep) %>% # to find which Bev prep type contains more than ave cals
+  summarise(mean_prep_diffs = mean(diff_mean_cals)) %>% 
+  arrange(desc(mean_prep_diffs))
+  # select(Beverage_prep,diff_mean_cals) # to make it easy to view the answer, remove this to view full data
+```
+
+```{r eval = FALSE}
+# THIS APPROACH IS NOT CORRECT, keeping in for my notes - this shows the result of taking the mean of the bev_prep means [134.2573].
+drinks_subset %>% 
+  group_by(Beverage_prep) %>% 
+    summarise(mean_cals_prep = mean(Calories, na.rm = TRUE)) %>%
+  mutate(mean_cals_all = mean(mean_cals_prep, na.rm = TRUE))
+```
+
+
+## Question 7.
+*Task: Which is the best type of coffee drink (and by ‘drink’ we mean the combination of Beverage_category, Beverage and Beverage_prep) to get if you’re worried about consuming too many calories?*
+
+Given Q4 and Q5 findings, we might assume a solo coffee is the lowest calorie option, while a smoothie with Grande Nonfat milk is the highest (if these options even exist!). 
+So, are there any drinks with Beverage_category = coffee AND Beverage_prep = solo?
+
+```{r}
+# filter data for Coffee prepared Solo
+drinks_subset %>% 
+  filter(Beverage_category == "Coffee", Beverage_prep == "Solo")
+```
+No, there are none!
+
+Instead, what is this the drink with the lowest calorie count in the dataset?
+
+```{r}
+drinks_subset %>% 
+  arrange(Calories)
+```
+There are 4 options in the data with 0 calories! Filter for these:
+```{r}
+drinks_subset %>% 
+  arrange(Calories) %>% 
+  filter(Calories == 0)
+```
+
+The best drink is **Tazo Tea**of any size, but **not the latte versions**. The **Brewed Coffee** is also very low calorie.
+
+Why did Tazo tea not come up as the lowest means in the earlier Q answers? Because there are other types within Beverage_type:Tazo Tea Drinks that have much higher calories counts (i.e. tea lattes), which has shifted the type mean up. 
+
+In general, the rule is to have a simple brew (tea or coffee) and not add any milk.
