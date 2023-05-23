@@ -1,0 +1,1 @@
+To ignore files, use GithubDesktop > Repository > Repository Settings > add to list of ignored files (either folder name or filename with extension). See https://wpguru.co.uk/2020/09/how-to-ignore-a-folder-in-github-desktop/ for instructions.
