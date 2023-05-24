@@ -30,6 +30,14 @@ Notes:
 - The nutritional content information at bottom has character values but is expressing things we might expect to be numeric (number values, percentages) - watch out!
 - View(data) is a useful way to browse through the data frame, shows more of the actual values than the glimpse function.
 
+### Homework review
+Could have also done:
+```{r}
+drinks_content %>% 
+  select(starts_with("Bev"), Calories) %>% # another way to get those columns
+```
+
+
 ## Question 2.
 *Task: Let’s first investigate the calories of different drinks. Select the variables Beverage_category, Beverage, Beverage prep and Calories from your data. Since we are interested in the calorie content, check if there are any NA values in the data, and drop them if there are.*
 
@@ -44,6 +52,20 @@ drinks_subset <- ( # store this subset of data as variable to use in this sessio
   drinks_content %>% 
   select(Beverage_category, Beverage, Beverage_prep, Calories) )
 View(drinks_subset) # view the subset in RStudio to check
+```
+
+### Homework review
+If we did need to drop the NAs...
+```{r}
+drinks_content %>% 
+  select(Beverage_category, Beverage, Beverage_prep, Calories)) %>% 
+  filter(!is.na(Calories)) # return all the rows that are not NA
+```
+or 
+```{r}
+drinks_content %>% 
+  select(Beverage_category, Beverage, Beverage_prep, Calories)) %>% 
+  drop_na() # we'll cover this today (w1d3)
 ```
 
 ## Question 3.
@@ -102,8 +124,22 @@ drinks_subset %>%
 
 There are five beverage prep types for which their drinks are (on average) higher in calories than the average calorie count of all Starbucks drinks: Whole Milk, Venti Nonfat Milk, 2% Milk, Grande Nonfat Milk, and Soymilk. These are all add-milk options in prep type.
 
+#### Homework review
+Self-note: Maybe split code chunk up, one step per chunk. (Although instructor says doesn't matter.)
+
+Pull() to turn the table answer into a vector value was the right thing to do, well done! As was turning into variable to use in next step.
+
+Alt to pull(): 
+```{r}
+avg_calories <- drinks_content %>% 
+  summarise(mean_calories = mean(Calories)) # returns a table (need to pull to make a vector)
+
+avg_calories$mean_calories # use $ to extract the value, and store this to use later
+```
+
+
 #### Less efficient solution to Q6
-```{r eval = FALSE}
+```{r, eval = FALSE}
 # THIS IS Q6 SOLUTION but a less efficient way, includes arranging by mean cals within each bev prep type, and an extra step to filter by a logical value.
 # First, find the mean across all dataset and call it mean_cals_all
 mean_cals_all <- (
@@ -136,7 +172,7 @@ Approach (a) is noted below, but incorrect.
 Are these approaches meaningfully different? Yes, it matters how you take the mean of means. If I take the means within each Bev type, and then take the mean of these means as an overall mean (output = 134... [shown in a code chunk below]) - this is not the same as taking the mean across the whole dataset (output = 192...).
 
 So, first find the mean of all drinks (192...), and assign it as a variable. Then use this to create a diff column once I've summarised the data by bev_type and found means for each category.
-```{r eval = FALSE}
+```{r, eval = FALSE}
 # THIS APPROACH IS NOT CORRECT, keeping in for my notes - this is approach(a) as noted above.
 drinks_subset %>% 
   mutate(mean_cals = mean(Calories, na.rm = TRUE)) %>% # first, add a column containing the mean calories across the whole dataset. Note: I'm keeping the na.rm in as good practice, not specifying before/after because subset ends with Calories so new column will automatically be after Calories. Check: mean_cals = 193... which is in the right range given previous results.
@@ -148,7 +184,7 @@ drinks_subset %>%
   # select(Beverage_prep,diff_mean_cals) # to make it easy to view the answer, remove this to view full data
 ```
 
-```{r eval = FALSE}
+```{r, eval = FALSE}
 # THIS APPROACH IS NOT CORRECT, keeping in for my notes - this shows the result of taking the mean of the bev_prep means [134.2573].
 drinks_subset %>% 
   group_by(Beverage_prep) %>% 
@@ -188,3 +224,9 @@ The best drink is **Tazo Tea**of any size, but **not the latte versions**. The *
 Why did Tazo tea not come up as the lowest means in the earlier Q answers? Because there are other types within Beverage_type:Tazo Tea Drinks that have much higher calories counts (i.e. tea lattes), which has shifted the type mean up. 
 
 In general, the rule is to have a simple brew (tea or coffee) and not add any milk.
+
+#### Notes after answers
+Q asked for coffee drink - neded to filter out the Tazo Tea group, then find the lowest cal option (Brewed Coffee). See homework answers under classnotes for w1d2.
+
+#### Extra learning
+
