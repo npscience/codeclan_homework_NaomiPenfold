@@ -1,0 +1,183 @@
+---
+title: "w1 d3 homework"
+output: html_notebook
+---
+
+# Cleaning & Extra `dplyr` Homework
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+movies <- read_csv("data/movies.csv")
+```
+
+## Q1: Investigate the data
+*After you’ve read in the data and assigned it to a variable with a useful name, investigate it. Write down some ideas for what you could do to further investigate/clean this data using what you’ve learned today (no need to code it though, just jot down thoughts and ideas). Feel free to also write down any general thoughts you get looking at the data - this task is just to get you thinking about data and data cleaning/prepping.*
+
+```{r}
+glimpse(movies)
+```
+Thoughts and ideas:
+- `title` and `original_title` suggests maybe there's been changes; could investigate where they don't match
+- could correlate budget with popularity or revenue (as an interesting INPUT > OUTPUT question)
+- could find earliest and latest release dates / order by age / compute age (do today's date - `release_date`)
+- could look at age v runtime (are films getting longer?)
+- could look at number of films released each year over time (are we making more?)
+
+## Q2: Select a subset of the data
+*A lot of interesting stuff in there! But for now, we are only interested in the movies’ titles, their runtime as well as their budget. Select the three columns that contain this information and save them into a new variable called movies_selected. Hint: you will have to make a choice between original_title and title.*
+
+```{r}
+movies_selected <- movies %>% 
+  select(title,runtime,budget)
+```
+
+## Q3:
+*Ok, now take your subsetted data movies_selected, and count the number of missing values in each column.*
+
+### Overview
+Quick sum(is.na()) find two recognised NA values (NA or NaN) in `runtime`, otherwise none. What about non-standard NAs too?
+
+For character column types, we may have "N/A" and other values like this. With film titles, count() to do frequency by title won't really reduce the problem because film title is not categorical. Instead do some ctrl+f on the dataset to check if any common non-standard missing values "N/A" "na" "unknown" "not available". There is one with title "Unknown" - this may be real, but I will assume it is not! So:
+`title`: 0 NAs *plus* one "Unknown" which *may* be a missing value
+
+For numeric column types, we won't have non-standard text (otherwise column type would be <chr>), but we might have 0 and we can arrange or filter to look for unexpected values. Arranging numeric columns (`runtime`, `budget`) in ascending order shows any zeros first, and filtering for these tells us the number of rows here:
+`runtime`: 2 NAs *plus* 35 zero values. We would need to decide if these are real missing values (given runtime is essential for films, I would say so!)
+`budget`: 0 NAs *plus* 1,037 zero values. Not clear if these are missing values, some films may be made with no official budget - but beware!
+
+
+### Title
+character
+```{r}
+# find recognised NAs in `title` column; note total observations is 4803
+sum(is.na(movies_selected$title))
+```
+
+
+### Runtime 
+numeric value
+```{r}
+# runtime NAs
+sum(is.na(movies_selected$runtime))
+```
+Check for zero values:
+```{r}
+movies_selected %>% 
+  # select(runtime) %>% 
+  arrange(runtime) # shows there are ~35 zeros, and some smaller values up to 60 - so try filter
+```
+
+```{r}
+# let's say 0 is missing value, but anything above 0 is real (a short film!)
+movies_selected %>% 
+  select(runtime) %>% 
+  filter(runtime < 1) # 35 rows
+```
+Check for absurdly high values (not missing values but maybe and encoding error?):
+```{r}
+movies_selected %>% 
+  select(runtime) %>% 
+  arrange(desc(runtime)) # highest value is 338, fine by me!
+```
+
+### Budget
+
+```{r}
+# budget NAs
+sum(is.na(movies_selected$budget))
+```
+
+Check for zeros:
+```{r}
+movies_selected %>% 
+  # select(budget) %>% 
+  # arrange(budget) # there's more than a 1000 here, so just go straight to filter!
+  filter(budget <1) # 1,037 rows here
+```
+
+## Q4:
+*There’s not too many NAs, but there are actually quite a few movies with a runtime of 0 in this dataset. Since it’s impossible for a movie to have a runtime of 0, use the function na_if to convert runtimes of length 0 into NAs. Save this into a new object called movies_runtime. Then count how many missing values there are now in the column runtime.*
+
+```{r}
+# impute 0s in `runtime` to NA
+movies_runtime <- movies_selected %>%
+  mutate(runtime = na_if(runtime, 0)) #%>% 
+# TEST 1: from above, one of the 0 runtime films was "The Tooth Fairy" - check to see if this is now runtime:NA
+  # filter(title == "The Tooth Fairy") # it is
+```
+
+```{r}
+sum(is.na(movies_runtime$runtime)) # now 37, which is as expected from earlier (2 + 35)
+```
+
+
+## Q5: Impute to median
+Impute the missing values in runtime with the median runtime using coalesce and save this into a new object called movies_imputed. There should now be no missing values in the column runtime - check this to make sure.
+
+```{r}
+# check what we expect median to be
+median(movies_runtime$runtime, na.rm = TRUE) # 104
+```
+
+
+```{r}
+movies_imputed <- movies_runtime %>%
+  mutate(runtime = coalesce(runtime,
+                            median(runtime, na.rm = TRUE)
+                            )
+         ) #%>% 
+# TEST: Is "The Tooth Fairy" runtime now 104?
+ #filter(title == "The Tooth Fairy") # it is, yay!
+
+# check no missing values in movies_imputed now
+sum(is.na(movies_imputed)) # 0, hooray :)
+```
+
+
+## Q6: 
+
+Finally, use the slice_min and slice_max functions on movies_imputed to get the movies with the 10 shortest and 10 longest runtimes.
+
+```{r}
+# 10 longest films
+movies_imputed %>% 
+  slice_max(runtime, n=10)
+
+# Alternative just using slice:
+# movies_imputed %>% 
+#  arrange(desc(runtime)) %>% 
+#  slice(1:10)
+```
+
+```{r}
+# 10 shortest films
+movies_imputed %>% 
+  slice_min(runtime, n=10)
+
+# Alternative just using slice:
+# movies_imputed %>% 
+#  arrange(runtime) %>% 
+#  slice(1:10)
+```
+
+## Q7: if_else, impute low budget
+*Using the if_else function, impute anything with a budget below $100 with the median budget. Overwrite your movies_imputed so it contains the new budget values.*
+
+```{r}
+# check what median is
+median(movies_imputed$budget, na.rm = TRUE) # 1.5e+07
+```
+
+```{r}
+movies_imputed <- movies_imputed %>% 
+  mutate(budget = if_else(budget < 100, 
+                            median(budget, na.rm = TRUE),
+                            budget)
+  ) #%>% 
+# TEST: from earlier, "The Pink Panther" is 0 budget, is it now replaced by 1.5e+07?
+  # filter(title == "The Pink Panther") # it is
+  
+```
+
