@@ -26,6 +26,24 @@ Thoughts and ideas:
 - could look at age v runtime (are films getting longer?)
 - could look at number of films released each year over time (are we making more?)
 
+#### Homework review
+Notice answer were using dim() and some other things, also explored the 0s (which I did in Q2) - so instead of the Qs to ask of the data, maybe think more about inspecting what the data looks like, and practising these functions.
+
+Also summary() is useful to see min/max and thus quickly spot which numeric columns have 0s in them, and also shows count of NAs...
+
+```{r}
+summary(movies)
+```
+
+Choosing between `title` and `original title`: try arrange to see <chr> in alphabetical order, check for foreign language films using non-english alphabets which may be a problem for us later. Note numbers go at top, special characters at bottom (use desc()).
+```{r}
+movies %>% 
+  select(title, original_title) %>% 
+#  arrange(title)
+  arrange(desc(original_title)) # shows lots of non-english characters
+```
+
+
 ## Q2: Select a subset of the data
 *A lot of interesting stuff in there! But for now, we are only interested in the movies’ titles, their runtime as well as their budget. Select the three columns that contain this information and save them into a new variable called movies_selected. Hint: you will have to make a choice between original_title and title.*
 
@@ -105,7 +123,21 @@ movies_selected %>%
             na_budget = sum(is.na(budget)))
 ```
 
+Note how summarise() works a bit like mutate() - give it a new column name and tell it what to include in it. With summarise(), this is a column in the generated summary table, whereas mutate adds or overwrites column in the original dataset.
 
+Or, instead of repeating for every column, you can tell it to do something across all columns (in your selected version):
+```{r}
+movies_selected %>% 
+  summarise(across(
+    .cols = everything(),
+    .fns = ~sum(is.na(.x))
+    ))
+```
+Using `across()`
+.cols at beginning to specify which (e.g. everything() ) - this is good practice
+.fns is for specifying which function to apply. NEEDS A TILDA ~. Need to put .x in the function too.
+
+**This function seems super powerful, check out the help page for ?across!**
 
 ## Q4:
 *There’s not too many NAs, but there are actually quite a few movies with a runtime of 0 in this dataset. Since it’s impossible for a movie to have a runtime of 0, use the function na_if to convert runtimes of length 0 into NAs. Save this into a new object called movies_runtime. Then count how many missing values there are now in the column runtime.*
@@ -196,5 +228,46 @@ movies_imputed <- movies_imputed %>%
 # TEST: from earlier, "The Pink Panther" is 0 budget, is it now replaced by 1.5e+07?
   # filter(title == "The Pink Panther") # it is
   
+```
+
+
+## Extensions
+
+### Q1
+
+```{r}
+movies_budgets <- movies_imputed %>%  
+  mutate(budget_type = case_when(
+    budget < 12e6 ~ "Small budget",
+    budget < 40e6 ~ "Medium budget", # remember this order is order of precedence, so medium budget won't overwrite small budget. When we did %%2 (modulus remainder function) for even then %%5 for div by 5, 10 remained even, so %%5 did not overwrite
+    budget >= 40e6 ~ "Big budget"
+  ))
+```
+
+To check how many in each new type:
+```{r}
+movies_budgets %>% 
+  select(budget, budget_type) %>% 
+  group_by(budget_type) %>% 
+  summarise(freq = n())
+```
+
+### Q2
+Count NAs in character columns in original dataset:
+```{r}
+movies %>% 
+  summarise(across(
+    .cols = where(is.character), # only look at columns of type <chr>
+    .fns = ~sum(is.na(.x))
+  )) # note the new table coltypes are integer because we're returning frequency values!
+```
+
+Count NAs in numeric columns in original dataset:
+```{r}
+movies %>% 
+  summarise(across(
+    .cols = where(is.numeric), # only look at columns of type <chr>
+    .fns = ~sum(is.na(.x))
+  ))
 ```
 
