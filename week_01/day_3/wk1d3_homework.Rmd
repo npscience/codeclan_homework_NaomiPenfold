@@ -47,7 +47,6 @@ For numeric column types, we won't have non-standard text (otherwise column type
 `runtime`: 2 NAs *plus* 35 zero values. We would need to decide if these are real missing values (given runtime is essential for films, I would say so!)
 `budget`: 0 NAs *plus* 1,037 zero values. Not clear if these are missing values, some films may be made with no official budget - but beware!
 
-
 ### Title
 character
 ```{r}
@@ -97,6 +96,17 @@ movies_selected %>%
   filter(budget <1) # 1,037 rows here
 ```
 
+#### Homework review
+A nice efficient way to get sum(is.na()) for multiple columns in table form:
+```{r}
+movies_selected %>% 
+  summarise(na_runtime = sum(is.na(runtime)),
+            na_title = sum(is.na(title)),
+            na_budget = sum(is.na(budget)))
+```
+
+
+
 ## Q4:
 *There’s not too many NAs, but there are actually quite a few movies with a runtime of 0 in this dataset. Since it’s impossible for a movie to have a runtime of 0, use the function na_if to convert runtimes of length 0 into NAs. Save this into a new object called movies_runtime. Then count how many missing values there are now in the column runtime.*
 
@@ -110,6 +120,13 @@ movies_runtime <- movies_selected %>%
 
 ```{r}
 sum(is.na(movies_runtime$runtime)) # now 37, which is as expected from earlier (2 + 35)
+```
+
+#### Homework review
+A summarise way to count NAs:
+```{r}
+movies_runtime %>% 
+  summarise(count = sum(is.na(runtime)))
 ```
 
 
@@ -173,7 +190,7 @@ median(movies_imputed$budget, na.rm = TRUE) # 1.5e+07
 ```{r}
 movies_imputed <- movies_imputed %>% 
   mutate(budget = if_else(budget < 100, 
-                            median(budget, na.rm = TRUE),
+                            median(budget, na.rm = TRUE), # hw review: don't need na.rm because we know there aren't any in budget (from Q3)
                             budget)
   ) #%>% 
 # TEST: from earlier, "The Pink Panther" is 0 budget, is it now replaced by 1.5e+07?
