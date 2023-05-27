@@ -1,0 +1,103 @@
+---
+title: "wk1 weekend homework"
+output: html_notebook
+---
+
+Task: explore Goodreads dataset `books.csv`.
+1. Set up, read in data
+2. Explore
+3. Check for missing values
+4. Clean up, e.g. column names
+5. Insights
+(6. Review notebook for good practices)
+
+
+```{r set_up}
+# load packages and read in data
+library(tidyverse)
+books <- read_csv("data/books.csv")
+```
+# Explore the data
+
+```{r}
+view(books)
+glimpse(books)
+summary(books)
+```
+
+Dimensions: 13 columns (variables) x 11,123 rows (observations).
+According to the columns, the data includes book title, authors, isbn (2 variants), language it's written in, size (by number of pages), publication date and publish, as well as some rating information (average rating, number of [numeric] ratings, number of text reviews).
+
+```{r}
+# Check for duplicate bookIDs: does nrows in distinct(bookIDs) match whole dataset?
+
+books %>% 
+  # distinct(bookID) # 11,123 rows == original data so no duplicates by bookID
+  count(bookID) %>% 
+  filter(n > 1) # no frequency greater than 1 (alternative way to look)
+
+```
+
+Potential things to clean up:
+- Remove the rowid, not needed - or just ignore it
+- Reorder to put the three rating columns together
+- Publication_date col is character type - change to numeric for time series?
+- isbn and isbn13 are character but contains numbers, but isbn is a unique ID so it doesn't matter that it's not numeric. Maybe suggests there are some character values in the column though, missing data, such as "unknown"
+
+# What to analyse?
+Potential things to look at:
+- Number of books published each year and average ratings
+- Which books have most and least text ratings, in which languages
+- Which publishers publish the most books (and which publishers publish the highest rated books)
+- Length of book versus rating
+- Most prolific authors (number of books per author); best rated authors
+
+What is possible with the data we have here (and the timeframe)? Look at the columns and see which data is clean enough and useful to analyse.
+
+
+## Book titles:
+Assume these are mostly unique, but see from scanning there are some duplicate / inconsistent values, e.g. lots of "Anna Karenina" books, with slightly different author combinations.
+
+
+
+```{r}
+
+# is the publisher data clean enough to analyse?
+
+# find unique publisher values, order alphabetically, to help spot where same publisher entered inconsistently
+
+publishers_all <- books %>% 
+  distinct(publisher) %>% 
+  arrange(publisher)
+
+# number of unique publisher values
+nrow(publishers_all) 
+
+```
+2,290 publishers - but by scanning, several could be the same publisher but entered inconsistently (see Houghton Mifflin, Scholastic, Alfred A..., Amherst, etc. Maybe too many potential inconsistencies to deal with in this homework time...
+
+```{r}
+# is the author data clean enough to analyse?
+
+books %>% 
+  distinct(authors) %>% 
+  arrange(authors)
+
+```
+6,639 rows - but these are not individual authors, sometimes several authors, separated with "/". Could look at *how many individual versus how many collaborative authorships in this dataset (contains("/"))?*
+
+
+Take a look at distinct values in several columns: language, authors
+```{r}
+# is the language data clean enough to analyse?
+
+ books %>% 
+  distinct(language_code) %>% 
+  arrange(language_code)
+
+# 27 rows --> manageable number to clean and look at
+# maybe enm is a typo (for eng?)
+```
+
+
+Missing values
