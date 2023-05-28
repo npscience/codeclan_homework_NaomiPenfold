@@ -23,6 +23,8 @@ books <- read_csv("data/books.csv")
 view(books)
 glimpse(books)
 ```
+
+
 ```{r}
 summary(books) # from pre-course work
 ```
@@ -89,7 +91,10 @@ zero_pages <- books %>%
   filter(num_pages == 0)
 
 nrow(zero_pages)
-# View(zero_pages) # use to find example to spot check later. Note: two rows say 'NOT A BOOK' in author column. Test book: book_id 6953, title "Like Water for Chocolate".
+# View(zero_pages) # use to find example to spot check later.
+# Note: two rows in zero_pages say 'NOT A BOOK' in author column. 
+# Book with 0 to check is NA after next step: book_id 6953, title "Like Water for Chocolate"
+# Note: this looks like an audiobook version (see publisher column).
 ```
 there are 76 rows with 0 pages. This is likely to be missing data, so recode as NA.
 ```{r}
@@ -167,7 +172,7 @@ nrow(publishers_all)
 Maybe too much potential cleaning here to work with `publisher` in this homework.
 
 ### Authors
-```{r}
+```{r authors}
 # is the author data clean enough to analyse?
 
 books %>% 
@@ -175,7 +180,7 @@ books %>%
   arrange(authors)
 
 ```
-6,639 rows, so some authors are listed multiple times (multiple books - as expected) - but these are not individual authors, sometimes several authors, separated with "/". 
+6,639 rows, so some authors are listed multiple times (multiple books, as expected) - but also there are values with sometimes several authors, separated with "/". 
 
 Maybe too much potential cleaning here to work with `authors` in this homework, but could look at *how many individual versus how many collaborative authorships in this dataset (contains("/"))?*
 
@@ -206,26 +211,130 @@ Choosing which analyses to do.
 Insight 1: the info above about data quality and the potential need to clean up authors and publishers before can do meaningful analyses with these variables.
 
 Ideas for 4 more insights to generate using dplyr and other functions we've learned this week (and avoiding the columns where data needs more than basic cleaning, as above):
-1. top/bottom books by ratings: top/bottom rated books (by number rating), books with most/least text ratings
-2. looking at language of the books: number of books in each language, average length and average_rating for each language, top and bottom rated books for a specified language; *might want to group all english variants (eng, en-uk, en-us, etc); might want to write a new csv with language data, if useful to work on more*
-3. how many individual versus collaborative authorships in this dataset (where collaborative contains("/") in authors)?
+
+* Top and bottom books by ratings: top/bottom rated books (by number rating)
+* Multi-authorship: How many individual versus collaborative authorships in this dataset (where collaborative contains("/") in authors)?
+* Look at language of the books: number of books in each language, average length and average_rating for each language, top and bottom rated books for a specified language; *might want to group all english variants (eng, en-uk, en-us, etc); might want to write a new csv with language data, if useful to work on more*
+
+
 4. look at what length book might be best to write/publish - recode book length to categories, and use summarise to do a count and average rating by size bucket; look at spread of book length to decide on buckets; make sure any 0-length books are encoded as NAs, check for other v small and large books
 5. Number of books published each year, average length and average ratings / number of ratings by age of book (if time to recode publication date (as date, or at least extract the year)
 
-## First, get rid of book_id and row_id since not using
+## First, get rid of book_id and row_id since not using further
 
 ```{r}
-books_clean <- books %>% 
+books <- books %>% 
   select(-row_id, -book_id)
 ```
 
 
-## Analysis 1
-top/bottom books by ratings: top/bottom rated books (by number rating), books with most/least text ratings
+## Analysis: Top & bottom rated books
+top/bottom books by ratings: top/bottom rated books (by number rating), books with most/least text ratings.
 
-```{r}
+Note: slice_min initially returned 25 rows, all 0 average rating. This could be real but note almost all have 0 ratings count too, so are unrated. So I have first filtered the data to turn average_rating to -99 if ratings_count is 0. Note: I tried to replace `average_rating` value with `NA_character_` if `ratings_count` is 0, but error: could not combine a <chr> for TRUE with <dbl> for FALSE when using if_else.
+```{r ratings_cleaning_before}
+# impute average_ratings to NA if ratings_count is 0 - step 1: check what we expect to change.
+
 books %>% 
-  select(title, authors, ) %>% 
-  slice_max(average_rating, n=10)
+  filter(ratings_count == 0) # 80 rows with 0s.
+  
+sum(is.na(books$average_rating)) # 0 NAs initially in average_ratings
+
 ```
 
+```{r ratings_cleaning_after}
+# impute average_ratings to -99 if ratings_count is 0, so can filter this later - step 2: change it.
+
+books <- books %>% 
+  mutate(average_rating_clean = if_else(
+            ratings_count == 0, -99, average_rating)) 
+
+books %>% 
+  filter(average_rating_clean < 0) # see 80 rows of -99 in new column
+
+# Note: old code that was wrong:
+# mutate(average_rating = na_if(ratings_count, 0)) 
+# this overwrote average_rating with ratings_count value for all (including NA for 0)
+```
+
+
+```{r}
+top_books <- books %>% 
+  slice_max(average_rating_clean, n=10) %>% 
+  arrange(title)  # make alphabetical
+top_books
+
+top_books_titles <- top_books %>% 
+  select(title) %>%
+  pull()
+top_books_titles
+```
+
+There are 19 top-rated books here (not top 10) because they all have an equal average rating of 5.
+
+Note: in previous try using average_rating, before cleaning the ratings with rating_count of 0 to -99, there were 22 top books. So the cleaning step helped.
+
+```{r}
+# find books with lowest average rating
+
+bottom_books <- books %>% 
+  filter(ratings_count > 0) %>% 
+  slice_min(average_rating_clean, n = 10) %>% 
+  arrange((desc(average_rating_clean))) # number 10 is the lowest rated
+bottom_books
+
+bottom_books_titles <- bottom_books %>% 
+  select(title) %>%
+  pull()
+bottom_books_titles
+```
+
+The 10 lowest rated books have average ratings of 1.00 to 2.40.
+
+## Analysis: multi-authorship
+From above (see code chunk `authors`), we know there are 6,639 distinct values in `authors`, without any cleaning steps.
+
+Some look like one author, others contain multiple authors, separated by /. So we can look at ratio single : multiple authorship using the logical test for whether it contains "/" - but not yet covered this kind of logical test (if a character is within a string) - google suggests `grepl()` but we've not covered this yet, so leaving this idea for now.
+
+```{r, eval = FALSE}
+
+# Not working. 
+
+# books %>% 
+#   mutate(num_of_authors = 
+#            if_else(authors %in% "/", "multiple", "single"),
+#          .after = authors
+#         )
+
+```
+
+## Analysis: by language
+Task: Look at language of the books: number of books in each language, average length and average_rating for each language, top and bottom rated books for a specified language.
+
+```{r}
+# Find number of books by language
+
+books_per_language <- books %>% # assign to new df to reuse later
+  group_by(language_code) %>% 
+  summarise(num_of_books = n()) %>%  # Number of books in each language
+  arrange(desc(num_of_books))
+
+books_per_language
+```
+
+There are 27 different languages (as previously found), or 23 if we count all types of English as one. Most books listed in Goodreads dataset are written in English (general, American and British), with ~100s in Spanish, French and German.
+
+
+```{r}
+# Summarise averages of ratings count and text reviews count by language (to see how much attention different language books get on Goodreads)
+
+books %>%
+  group_by(language_code) %>% 
+  summarise(across(
+    .cols = c(ratings_count, text_reviews_count),
+    .fns = mean # don't need to remove NAs because none in these cols, so not using lambda function
+  )) %>% 
+  arrange(desc(ratings_count))
+```
+
+Books written in English (general) receive the most ratings and text reviews on the Goodreads platform, although several other languages get 1000s of numeric reviews too. Books written in languages other than English seem to get fewer text reviews, though =  Swedish books have the most text reviews out of all non-English books (157, the only language with >100 text reviews). 
