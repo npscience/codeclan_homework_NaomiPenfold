@@ -22,60 +22,151 @@ books <- read_csv("data/books.csv")
 ```{r}
 view(books)
 glimpse(books)
-summary(books)
+```
+```{r}
+summary(books) # from pre-course work
 ```
 
 Dimensions: 13 columns (variables) x 11,123 rows (observations).
-According to the columns, the data includes book title, authors, isbn (2 variants), language it's written in, size (by number of pages), publication date and publish, as well as some rating information (average rating, number of [numeric] ratings, number of text reviews).
+According to the columns, the data includes:
+- `title`: book title
+- `authors`: book author or authors
+- `isbn` and `isbn13`: two variants of standard unique identifier for books
+- `language_code`: language it's written in, using standardised code
+- `num_pages`: number of pages, i.e. a measure of the size of the book
+- `publication_date`: 
+publication date and publisher, as well as some rating information (average rating, number of [numeric] ratings, number of text reviews).
+
+## Data quality and cleaning
+Strategy, given time: only clean what I need to to support analysis.
+
+Reviewing the view/summary/glimpse outputs, some potential things to clean up:
+- Rename bookID and rowid using janitor - for good practice (but note, not likely to use these rows for anytihng, not informative)
+- remove book_id and row_id after cleaning, before analysis because won't need them
+- Reorder to put the three rating columns together? (not really needed)
+- Check column type:
+  - Publication_date col is character type - change to date to use?
+  - isbn and isbn13 are character but contains numbers, but isbn is a unique ID so it doesn't matter that it's not numeric. Maybe suggests there are some character values in the column though, missing data, such as "unknown"
+
+### Basic cleaning steps
+```{r}
+# improve naming of columns for tidyverse snake_case style
+
+books <- books %>% 
+  janitor::clean_names() %>% # changed bookID to book_id but not rowid
+  rename("row_id" = "rowid")
+```
+
 
 ```{r}
-# Check for duplicate bookIDs: does nrows in distinct(bookIDs) match whole dataset?
+# Check for duplicate book IDs, in case repeated rows
 
 books %>% 
   # distinct(bookID) # 11,123 rows == original data so no duplicates by bookID
-  count(bookID) %>% 
-  filter(n > 1) # no frequency greater than 1 (alternative way to look)
+  count(book_id) %>%
+  arrange(desc(book_id)) # the topmost one is 1, so nothing > 1
+  # filter(n > 1) # (as alternative way to look) --> shows 0 rows, so no frequency greater than 1 
+
+```
+### Check for missing values
+```{r}
+# Check for standard NAs
+
+books %>% 
+  summarise(across(
+    .cols = where(is.numeric),
+    .fns = ~sum(is.na(.x))
+  )
+  )
+
+```
+No NAs but from summary above, 0s in numeric columns: average_rating, num_pages, ratings_count, text_reviews_count - maybe non-standard NAs, in particular for num_pages since that would indicate a book with no pages (the others could be meaningful 0s).
+```{r}
+# explore 0s in num_pages
+
+zero_pages <- books %>% 
+  arrange(num_pages) %>% 
+  filter(num_pages == 0)
+
+nrow(zero_pages)
+# View(zero_pages) # use to find example to spot check later. Note: two rows say 'NOT A BOOK' in author column. Test book: book_id 6953, title "Like Water for Chocolate".
+```
+there are 76 rows with 0 pages. This is likely to be missing data, so recode as NA.
+```{r}
+# recode 0s in num_pages as NAs
+
+books <- books %>%
+  mutate(num_pages = na_if(num_pages, 0))
+
+sum(is.na(books$num_pages)) # there's now 76 NAs
+# books %>% filter(book_id == 6953) # another spot check: this book now has NA num_pages
 
 ```
 
-Potential things to clean up:
-- Remove the rowid, not needed - or just ignore it
-- Reorder to put the three rating columns together
-- Publication_date col is character type - change to numeric for time series?
-- isbn and isbn13 are character but contains numbers, but isbn is a unique ID so it doesn't matter that it's not numeric. Maybe suggests there are some character values in the column though, missing data, such as "unknown"
+```{r}
+# check for non-zero but low page numbers (e.g. 1-50 pages)
 
-# What to analyse?
-Potential things to look at:
+short_books <- books %>% 
+  filter(num_pages <= 50) %>% # no more 0s so no lower bound needed
+  arrange(num_pages)
+
+nrow(short_books)
+
+```
+there are 492 rows with 1-50 pages -- these may be real, so can't automatically discount or recode.
+
+## Evaluate which variables are clean enough to analyse this weekend
+Some questions this data might offer insights on:
 - Number of books published each year and average ratings
 - Which books have most and least text ratings, in which languages
 - Which publishers publish the most books (and which publishers publish the highest rated books)
 - Length of book versus rating
 - Most prolific authors (number of books per author); best rated authors
 
-What is possible with the data we have here (and the timeframe)? Look at the columns and see which data is clean enough and useful to analyse.
+*What is possible with the data we have here (and the timeframe)?* Look at the columns and see which data is clean enough (or reasonable to clean in short time) and useful to analyse.
+
+### Book titles
+Assume these are mostly unique, but see from scanning there are some duplicate or inconsistent values, e.g. lots of "Anna Karenina" books (duplicate titles), with slightly different author combinations - this is the same book (maybe different author combos due to translated versions), but note other duplicates may be different books (different authors altogether), so cannot assume all duplicates are erroneous. 
+
+How many duplicated titles?
+
+```{r}
+# is the number of distinct book titles less than the overall number of rows in the original dataset?
+
+titles <- books %>% 
+  distinct(title) # 10,348 rows < 11,123 rows in original
+
+duplicates_in_titles <- nrow(books) - nrow(titles)
+duplicates_in_titles
+
+```
+There are 775 duplicated book titles in this dataset.
+
+There are also some titles that could be the same book but written inconsistently, e.g. "The Ultimate Hitchhiker's Guide: Five Complete Novels and One Story (Hitchhiker's Guide to the Galaxy  #1-5)" and "The Ultimate Hitchhiker's Guide to the Galaxy (Hitchhiker's Guide to the Galaxy  #1-5)".
+
+Maybe too much potential cleaning here to work with `title` in this homework.
 
 
-## Book titles:
-Assume these are mostly unique, but see from scanning there are some duplicate / inconsistent values, e.g. lots of "Anna Karenina" books, with slightly different author combinations.
-
-
-
+### Publishers
 ```{r}
 
 # is the publisher data clean enough to analyse?
 
 # find unique publisher values, order alphabetically, to help spot where same publisher entered inconsistently
 
-publishers_all <- books %>% 
+ publishers_all <- books %>% 
   distinct(publisher) %>% 
   arrange(publisher)
 
 # number of unique publisher values
-nrow(publishers_all) 
+nrow(publishers_all)
 
 ```
-2,290 publishers - but by scanning, several could be the same publisher but entered inconsistently (see Houghton Mifflin, Scholastic, Alfred A..., Amherst, etc. Maybe too many potential inconsistencies to deal with in this homework time...
+2,290 publishers (so some publishers listed more than once, have published multiple books - as expected) - but by scanning, several could be the same publisher but entered inconsistently (see Houghton Mifflin, Scholastic, Alfred A..., Amherst, etc.
 
+Maybe too much potential cleaning here to work with `publisher` in this homework.
+
+### Authors
 ```{r}
 # is the author data clean enough to analyse?
 
@@ -84,20 +175,57 @@ books %>%
   arrange(authors)
 
 ```
-6,639 rows - but these are not individual authors, sometimes several authors, separated with "/". Could look at *how many individual versus how many collaborative authorships in this dataset (contains("/"))?*
+6,639 rows, so some authors are listed multiple times (multiple books - as expected) - but these are not individual authors, sometimes several authors, separated with "/". 
 
+Maybe too much potential cleaning here to work with `authors` in this homework, but could look at *how many individual versus how many collaborative authorships in this dataset (contains("/"))?*
 
-Take a look at distinct values in several columns: language, authors
+### Languages
 ```{r}
 # is the language data clean enough to analyse?
 
  books %>% 
   distinct(language_code) %>% 
   arrange(language_code)
+```
+27 rows is a manageable number to clean and look at. From scanning, no obvious cleaning steps needed, no NAs or duplicates. Maybe "enm" is a typo for eng, but searching online: "enm" is for "English, middle ages", so not a typo.
 
-# 27 rows --> manageable number to clean and look at
-# maybe enm is a typo (for eng?)
+### Derivative data
+What additional variables could I add by processing the available data?
+- Recode rating as buckets (e.g. rating >4 = highly rated, rating >2.5 = fair, rest = poorly rated )
+- Age of book: to compare against number of ratings and reviews accrued over time (and look at average ratings by age, or some category of age (recoding data by buckets of age). To get age of book, would need to calculate time between today and publication date, if publication date values can be recognised as dates in R. Search online --> base R function as.Date() converts from character to date class (new to me, maybe leave for this homework). If proceed, note I might need to tell it to expect mm/dd/yyyy format. Help function suggests syntax to look for format "%m/%d/%Y": 
+```
+as.Date(x, format, tryFormats = c("%Y-%m-%d", "%Y/%m/%d"),
+        optional = FALSE, ...)
+```
+
+# Analysis
+
+## Analysis planning
+Choosing which analyses to do.
+
+Insight 1: the info above about data quality and the potential need to clean up authors and publishers before can do meaningful analyses with these variables.
+
+Ideas for 4 more insights to generate using dplyr and other functions we've learned this week (and avoiding the columns where data needs more than basic cleaning, as above):
+1. top/bottom books by ratings: top/bottom rated books (by number rating), books with most/least text ratings
+2. looking at language of the books: number of books in each language, average length and average_rating for each language, top and bottom rated books for a specified language; *might want to group all english variants (eng, en-uk, en-us, etc); might want to write a new csv with language data, if useful to work on more*
+3. how many individual versus collaborative authorships in this dataset (where collaborative contains("/") in authors)?
+4. look at what length book might be best to write/publish - recode book length to categories, and use summarise to do a count and average rating by size bucket; look at spread of book length to decide on buckets; make sure any 0-length books are encoded as NAs, check for other v small and large books
+5. Number of books published each year, average length and average ratings / number of ratings by age of book (if time to recode publication date (as date, or at least extract the year)
+
+## First, get rid of book_id and row_id since not using
+
+```{r}
+books_clean <- books %>% 
+  select(-row_id, -book_id)
 ```
 
 
-Missing values
+## Analysis 1
+top/bottom books by ratings: top/bottom rated books (by number rating), books with most/least text ratings
+
+```{r}
+books %>% 
+  select(title, authors, ) %>% 
+  slice_max(average_rating, n=10)
+```
+
