@@ -328,13 +328,15 @@ There are 27 different languages (as previously found), or 23 if we count all ty
 ```{r}
 # Summarise averages of ratings count and text reviews count by language (to see how much attention different language books get on Goodreads)
 
-books %>%
+books_activity_by_language <- books %>%
   group_by(language_code) %>% 
   summarise(across(
     .cols = c(ratings_count, text_reviews_count),
     .fns = mean # don't need to remove NAs because none in these cols, so not using lambda function
   )) %>% 
   arrange(desc(ratings_count))
+
+books_activity_by_language
 ```
 
 Books written in English (general) receive the most ratings and text reviews on the Goodreads platform, although several other languages get 1000s of numeric reviews too. Books written in languages other than English seem to get fewer text reviews, though =  Swedish books have the most text reviews out of all non-English books (157, the only language with >100 text reviews). 
