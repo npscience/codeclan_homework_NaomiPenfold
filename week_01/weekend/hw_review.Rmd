@@ -1,0 +1,107 @@
+---
+title: "wk1_weekend_hw_review"
+output: html_notebook
+---
+Instructor: Al
+
+```{r}
+library(tidyverse)
+books <- read_csv("data/books.csv")
+```
+
+# 1. How many books in each language?
+(My Q)
+```{r}
+# Find number of books by language
+
+books_per_language <- books %>% # assign to new df to reuse later
+  group_by(language_code) %>% 
+  summarise(num_of_books = n()) %>%  # Number of books in each language
+  arrange(desc(num_of_books))
+
+books_per_language
+```
+
+An alternative way is to use count(), as a nice shorthand for group_by > summarise(n()) - gives a column `n`.
+
+```{r}
+books %>% 
+  count(language_code) %>% 
+  arrange(desc(n))
+```
+
+
+# 2. Any similarities between top rated books?
+(Ali)
+```{r}
+books %>% 
+  slice_max(average_rating, n = 5)
+
+# returns 22 rows, there are some "NOT A BOOK"s in `authors`. Remove these.
+books %>% 
+  select(authors) %>% 
+  filter(!authors == "NOT A BOOK") # drops to 11,118, so 5 fewer
+
+books_purged <- books %>% 
+  filter(!authors == "NOT A BOOK")
+
+books_purged %>% 
+  slice_max(average_rating, n = 5)
+# returns 20 rows, and several with low ratings count, so filter these out
+
+books_purged %>% 
+  filter(ratings_count >= 100) %>% 
+  slice_max(average_rating, n = 5) # now we have a top 5!
+```
+Top-rated books are Harry Potters and Calvin and Hobbes.
+
+To improve my homework: filter my top/bottom-rated analysis for ratings_count >= 100 (or more).
+
+# 3. Do more recently published books receive a higher review than older books?
+(Thijmen)
+
+```{r}
+books %>% 
+  filter(ratings_count > 1) %>%  # to remove to 0 ratings ones: 10,967 rows
+  select(title, authors, publication_date, average_rating) %>% 
+  # next row looks for mm/dd/yyyy characters and makes new column as yyyy-mm-dd date format
+  mutate(new_pub_date = as.Date(publication_date, "%m/%d/%Y"), .before = publication_date) %>% 
+  # update to use format() to only return the year
+  mutate(pub_year = format(as.Date(publication_date, format = "%m/%d/%Y"), "%Y"), .before = publication_date) %>%  # use format()
+  # summarise(across(.cols = pub_year, .fns = ~ sum(is.na(.x)))) # there are 2 NAs in here now
+  # filter(is.na(pub_year)) # they are incorrect dates, 31st November and June 
+  filter(!is.na(pub_year)) %>% # 10,965 rows, so dropped the 2 NAs
+  mutate(age = case_when(
+    pub_year < 2000 ~ "old",
+    pub_year >= 2000 ~ "young"
+  ), .after = pub_year) %>%
+  group_by(age) %>% 
+  summarise(average_rating = mean(average_rating)) # old books have slightly higher ratings
+  
+```
+
+
+# 4. Which languages has JK Rowling published in?
+(Justyna)
+
+```{r}
+books %>% 
+  select(authors, language_code) %>% 
+  mutate(JK = str_detect(authors, "J.K. Rowling"), .after = authors) %>% 
+  filter(JK == TRUE) %>% # 25 rows 
+  group_by(authors) %>% 
+  count(language_code) # makes summary table of languages by frequency (n)
+```
+
+Note for my work: str_detect to find a string within character value. Starts_with() and contains() only work for select() when we needed mutate().
+
+# 5. Are there missing values in the data?
+
+```{r}
+books %>% 
+  summarise(across(
+    .cols = everything(),
+    .fns = ~ sum(is.na(.x))
+  ))
+```
+
