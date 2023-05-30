@@ -41,34 +41,174 @@ The overall goal of the homework is to practice everything you've learnt this we
 **Question 1.**  
 Load the `code_clan_tweets.csv` data. Find the number of rows, columns, and list all the variable names. 
 
+```{r}
+library(tidyverse)
+tweets <- read_csv("data/code_clan_tweets.csv")
+view(tweets)
+dim(tweets) # 234 rows, 27 columns
+names(tweets) # variable names
+```
+
 <br>
 
 **Question 2.**  
 Find the total number of favourites (stored in `favorite_count`) that CodeClan tweets have got. Don't add a tweet's `favorite_count` to the total when the tweet was quoted (see the `is_quote` variable). 
+
+```{r}
+# check for NAs
+tweets %>% 
+  summarise(across(.cols = everything(),
+                   .fns = ~ sum(is.na(.x))))
+
+# Many cols with NAs in - check this table when using columns below
+
+# Find sum of favorites for non-quoted tweets:
+tweets %>% 
+  group_by(is_quote) %>%  
+  summarise(sum = sum(favorite_count)) %>%  # 425 (in FALSE), note: 0 NAs in favorite_count
+  filter(is_quote == FALSE) %>% 
+  pull(sum) # 425
+
+# alternative way
+tweets %>% 
+  filter(is_quote == FALSE) %>% # down to 227 rows (note: 0 NAs in is_quote)
+  select(favorite_count) %>% # reduce to one col
+  pull() %>% # reduce to a vector
+  sum() # 425
+
+# Answer: 425 favorites in total, across 227 non-quoted tweets
+```
 
 <br>
 
 **Question 3.**  
 Summarise the mean number of retweets (`retweet_count`), split by the type of platform that was used to tweet (`source`). Again, omit quoted tweets from the mean.
 
+```{r}
+# note 0 NAs in retweet_count (from above)
+
+tweets %>% 
+  filter(is_quote == FALSE) %>%
+  summarise(mean = mean(retweet_count)) %>% 
+  pull() 
+
+# Mean retweets of non-quoted tweets = 2.57...
+```
+
+
 <br>
 
 **Question 4.**  
 Count the total number of likes (i.e. total of `favorite_count`), split by `media` type, and arrange them from most likes to least. Assume that any tweets without a listed `media` type are of type "text".  
 
+```{r}
+# 145 NAs in media_type (as per above) - recode as "text" before summarising
+
+tweets %>% 
+  mutate(media_type = case_when(
+    is.na(media_type) == TRUE ~ "text",
+    TRUE ~ media_type)) %>% 
+  group_by(media_type) %>% 
+  summarise(num_tweets = n(),
+            total_likes = sum(favorite_count)) %>% 
+  arrange(desc(total_likes))
+
+# photos: 371 likes across 89 tweets, text: 75 likes across 145 tweets
+# tweets with photos in tend get more likes!
+```
+
 <br>
 
 **Question 5.**  
 Find the mean number of characters that a CodeClan tweet contains.  You can either find a way to count the text in the `text` variable, or use the variable `display_text_width` which contains a count. Checking both would be a good idea if possible to see if they match (but it's not essential).  
+
+```{r}
+# First, inspect display_text_width to check if suitable
+# show the 15 smallest values
+tweets %>% 
+  select(text, display_text_width) %>% 
+  slice_min(display_text_width, n = 15)
+# note display_text_width seems to discount mentions "@name" (which makes sense)
+
+# show the 15 highest values (expect twitter chr limit: 240)
+tweets %>% 
+  select(text, display_text_width) %>% 
+  slice_max(display_text_width, n = 15) # 281-261
+# inspection suggests no missing values to correct, and 0 NAs (as above)
+# display_text_width seems sensible to use
+
+# Approach 1: find the mean using display_text_width
+
+tweets %>% 
+  select(display_text_width) %>% 
+  summarise(ave_length = mean(display_text_width)) %>% 
+  pull() # mean length is 149.42 characters
+
+# Approach 2: find the mean by first counting characters in text column
+
+tweets %>% # first use nchar() to make new column with num characters in text
+  mutate(nchar = nchar(text), .after = text) %>% 
+  select(nchar) %>% 
+  summarise(ave_length = mean(nchar)) %>% 
+  pull() # mean length is 188.3718
+
+# Note: approach 2 mean > approach 1 mean
+
+# nchar counts look to be higher than display_text_width, i.e. includes mentions (@name)
+# check: is nchar > display_text_width for all rows?
+
+# remake nchar col for test
+tweets %>% # first use nchar() to make new column with num characters in text
+  mutate(nchar = nchar(text), .after = text) %>% 
+  mutate(nchar_larger = if_else(
+    nchar > display_text_width, TRUE, FALSE),
+    .after = display_text_width) %>%
+  count(nchar_larger) # 47 FALSE + 187 TRUE
+# so it's not consistently higher if counting chrs in text vs using display_text_width
+# something else is going on, not investigating further here
+```
+
 <br>
 
 **Question 6.**  
 The `code_clan_info.csv` data file contains `status_url` along with other info. Load this in, and join it to the `code_clan_tweets` tibble, so that you have a `status_url` for each tweet. Decide which variable to join the tibbles on.  
 
+```{r}
+codeclan_info <- read_csv("data/code_clan_info.csv")
+
+view(codeclan_info)
+glimpse(codeclan_info) # 234 obs x 15 variables
+
+# Note: account_created_at date values are tpye <chr> not date; 
+# Note: location contains multiple answers (may not be an issue)
+```
+```{r}
+# Keys: both codeclan_info & tweets df's have PK: tweet_id
+
+# Join 'status_url' from codeclan_info to tweets df using 'tweet_id'
+left_join(tweets, codeclan_info, by = "tweet_id") # 234 obs x 41 variables
+
+# Approach 2: first reduce cols to join from codeclan_info to just id and status_url
+tweets_w_status <- codeclan_info %>% # save this join for Q7
+  select(tweet_id, status_url) %>% 
+  left_join(tweets, codeclan_info, by = "tweet_id") # 234 obs x 28 variables (+1 var from original tweets)
+tweets_w_status 
+
+
+```
+
 <br>
 
 **Question 7.**  
 From your new joined data, create a new tibble `codeclan_hashtags` containing only `tweet_id` and `hashtags`, then convert `hashtags` into lowercase for analysis. Keep only those tweets with hashtags.
+
+```{r}
+codeclan_hashtags <- tweets_w_status %>% # assign to new df
+  select(tweet_id, hashtags) %>% # select only id and hashtags
+  mutate(hashtags = str_to_lower(hashtags)) %>% # convert hashtags to lowercase
+  drop_na(hashtags) # remove NAs in hashtags -> from 234 to 117 obs
+codeclan_hashtags
+```
 
 <br>
 
