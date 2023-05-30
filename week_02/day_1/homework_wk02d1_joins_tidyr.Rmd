@@ -23,6 +23,14 @@ frauds <- read_csv("data/FraudBase.csv")
 transactions <- read_csv("data/TransactionBase.csv")
 ```
 
+### homework review:
+And clean column names!!
+
+```
+library(janitor)
+data %>%  clean_names()
+```
+
 ## Question 2
 
 Join the data containing card details and customer details by customer id, so that all records of card details and any matching records in customer details are kept. Before you run the code, think about how many rows you expect to see after joining.
@@ -80,6 +88,19 @@ inner_join(cards,
 ```
 Returns 500 rows, so every card in `cards` has at least one transaction recorded in `transactions`.
 
+### homework review
+They used a semi-join instead:
+```
+semi_join(cards, transactions, by = c("Card_Number" = "Credit_Card_ID"))
+```
+to filter cards table by the condition that card exists in transactions, without pulling in info from transactions - i.e. a filtering join. 
+I interpreted the question differently!
+
+```{r}
+
+```
+
+
 # 1.2 `tidyr` (MVP)
 
 ## Question 5
@@ -118,5 +139,6 @@ date_when_berets_most_popular <-hat_observations_tidy %>%
 date_when_berets_most_popular
 ```
 
-
+### homework review
+They did something slightly diff but think it's the same overall.
 
