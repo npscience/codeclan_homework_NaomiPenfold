@@ -95,6 +95,16 @@ tweets %>%
 # Mean retweets of non-quoted tweets = 2.57...
 ```
 
+### homework review
+Read the question! Split by source...
+
+```{r}
+tweets %>% 
+  filter(is_quote == FALSE) %>%
+  group_by(source) %>% 
+  summarise(mean = mean(retweet_count))
+```
+
 
 <br>
 
@@ -105,7 +115,7 @@ Count the total number of likes (i.e. total of `favorite_count`), split by `medi
 # 145 NAs in media_type (as per above) - recode as "text" before summarising
 
 tweets %>% 
-  mutate(media_type = case_when(
+  mutate(media_type = case_when( ## review: use coalesce to change NAs!
     is.na(media_type) == TRUE ~ "text",
     TRUE ~ media_type)) %>% 
   group_by(media_type) %>% 
@@ -147,7 +157,7 @@ tweets %>%
 # Approach 2: find the mean by first counting characters in text column
 
 tweets %>% # first use nchar() to make new column with num characters in text
-  mutate(nchar = nchar(text), .after = text) %>% 
+  mutate(nchar = nchar(text), .after = text) %>% # hw review: used str_length(), same answers
   select(nchar) %>% 
   summarise(ave_length = mean(nchar)) %>% 
   pull() # mean length is 188.3718
@@ -211,6 +221,14 @@ codeclan_hashtags
 ```
 
 <br>
+
+## Homework review summary
+
+* to replace NA with something else, use coalesce()
+* make sure I've read the Q & answered in full
+* str_length() is alternative to nchar() for counting characters
+* extension answers make sense
+
 
 # Extensions
 
