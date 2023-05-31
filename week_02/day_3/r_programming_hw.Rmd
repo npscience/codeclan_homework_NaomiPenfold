@@ -1,0 +1,290 @@
+---
+title: "Homework - wk3d3"
+output: html_document
+---
+
+# MVP
+
+## Question 1
+
+Find the weather forecast for the next three days online. Create a list of lists in which each inner list should be labelled with the name of the day of the week. Each inner list should contain named elements telling you the temperature, chance of rain and wind speed.
+
+**Online forecast**
+(Source: BBC Weather)
+
+| Day | temp | chance of rain | wind speed |
+| Thursday | 13 | 0 | 9 |
+| Friday | 16 | 0 | 6 |
+| Saturday | 17 | 0 | 7 |
+
+
+```{r}
+forecast <- list(
+  "Thursday" = list(temp_max = 13, rain_prob = 0, wind_speed = 9),
+  "Friday" = list(temp_max = 16, rain_prob = 0, wind_speed = 6), 
+  "Saturday" = list(temp_max = 17, rain_prob = 0, wind_speed = 7)
+  )
+
+forecast
+```
+
+## Question 2
+
+Using the list you've just made find:
+
+  i. The chance of rain tomorrow
+  ii. The wind speed on the day after tomorrow
+  iii. The temperature tomorrow.
+
+```{r}
+# find chance of rain tomorrow (Thursday)
+
+forecast$Thursday$rain_prob
+
+# The wind speed on the day after tomorrow (Friday)
+
+forecast$Friday$wind_speed
+
+# The temperature tomorrow
+
+forecast$Thursday$temp_max
+
+```
+
+### unanswered Q
+**Q: Is there a way to do first level of lists by index (tomorrow = [1], day after tomorrow = [2], etc, and then use $aspect?**
+
+## Question 3
+
+Find a 14 day forecast online and create a matrix of the forecasts for temperature, where each week is one row and columns correspond to days.
+
+You will want to give a name to the matrix you create.
+
+```{r}
+# make vector of 14 daily temps, in order from today (Wednesday) to Tuesday in 14 days' time
+temps <- c(17, 15, 16, 17, 18, 18, 17, 17, 17, 17, 17, 18, 16, 16)
+length(temps) # check this is 14
+
+# make matrix, tell to go along row first
+two_week_forecast <- matrix(c(temps), nrow = 2, ncol = 7, byrow = TRUE) 
+
+two_week_forecast
+
+```
+
+## Question 4
+
+From the matrix you just made select:
+
+  i. The third day of the second week
+  ii. The whole second week
+  iii. The first, third and fifth days in both weeks.
+
+```{r}
+# note [week,day]
+
+# The third day of the second week
+two_week_forecast[2,3]
+
+# The whole second week
+two_week_forecast[2,]
+
+# The first, third and fifth days in both weeks.
+two_week_forecast[,c(1,3,5)]
+
+```
+
+
+## Question 5
+
+Write a function that pre-appends "The answer is: " to any character input, while for numeric input, it either just returns the number for numbers less than 10, or divides the number by 10 for numbers greater than 10. For anything else return "Invalid input".
+
+```{r}
+
+input_to_output <- function(input){
+    if(is.numeric(input) == TRUE){
+      if(input < 10){
+        return(input)
+      }else{
+        return(input / 10) 
+      }
+    }
+    if(is.character(input) == TRUE){
+        print(stringr::str_c("The answer is: ", input))       
+      }else{
+    return("Invalid input")    
+  }
+}
+
+input_to_output("help me")
+input_to_output(8)
+input_to_output(123)
+input_to_output(TRUE)
+
+```
+
+
+## Question 6
+
+Write a function which checks if two vectors have the same elements. 
+
+* If they have the same elements in the same order, return "Exactly the same"
+* If they have the same elements but in a different order, return "The same"
+* If they don't have the same elements, return "Different".
+
+
+<details>
+<summary>**Hints**</summary>
+* You can check if two vectors have the same elements but in a different order by using `sort` to sort each vector first and then checking if they are equal.
+* Have a look at the `all()` function
+</details>
+</blockquote>
+
+```{r}
+# check if elements at same index match
+vector1 <- c(1,2,3,4,5)
+vector2 <- c(1,2,3,4,5)
+n <- length(vector1)
+matching_vector <- c(1:length(vector1))
+
+make_match_vector <- function(matching_vector){
+  for(i in 1:n){
+    result <- as.logical(vector1[i] == vector2[i])
+    matching_vector[i] <- result
+  }
+}
+
+make_match_vector(matching_vector)
+matching_vector
+
+
+
+vector3 <- as.logical(vector1[1] == vector2[1])
+vector
+vector1[4]
+vector2[4]
+
+n <- length(vector1)
+n2 <- length(vector2)
+for(i in 1:n)
+if(vector1[i] == vector2[i])
+print
+
+```
+
+
+```{r}
+
+
+check_vectors_match <- function(vector1, vector2){
+  if(length(vector1) == length(vector2)){
+      for(i in 1:length(vector1)){
+        matching_vector[i] <- as.logical(vector1[i] == vector2[i])
+      }
+      if(all(matching_vector) == TRUE){
+        print("Exactly the same")
+      }else{
+        sort(vector1)
+        sort(vector2)
+        # match function
+        if(all(match) == TRUE){
+        print("The same")
+        }else{
+          print("Different")
+        }
+      }
+      
+      
+  }else{
+    return("Error: vectors are not the same length")
+  }
+  
+
+}
+```
+
+
+
+
+```{r}
+check_vectors_match <- function(x, y){
+
+    if(length(x) == length(y)){
+      
+    
+      if(all(x == y)){
+        
+        print("Exactly the same")
+      
+        }else{
+        
+        x <- sort(x)
+        y <- sort(y)
+        if(all(x == y)){
+          print("The same")
+          }else{
+            
+            print("Different")
+            
+          }
+        
+        }
+      
+      }else{
+    
+      return("Error: vectors are not the same length")
+      }
+  
+}
+
+# Test 1: 2 exactly same vectors
+vector1 <- c(1,2,3,4,5)
+vector2 <- c(1,2,3,4,5)
+check_vectors_match(vector1, vector2)
+# "Exactly the same"
+
+# Test 2: 2 vectors with same #s in diff order
+vector3 <- c(5,2,1,4,3)
+check_vectors_match(vector1, vector3) 
+# "The same"
+
+# Test 3: 2 vectors with diff #s
+vector4 <- c(6, 7, 8, 9, 10)
+check_vectors_match(vector1, vector4) 
+# "Different"
+
+# Test 4: 2 diff size vectors
+vector5 <- c(1, 2, 3, 4, 5, 6)
+check_vectors_match(vector1, vector5) 
+# "Error: vectors are not the same length"
+```
+
+
+# Extension
+
+<br>
+
+**Question 7.** \
+Write code that prints a multiplication table for numbers up to 12. i.e. there will be 12 rows and 12 columns, and each element should be the row number multiplied by the column number.
+
+*From: https://adriann.github.io/programming_problems.html*
+
+<br>
+
+**Question 8.** \
+Write a function that takes a vector, and creates a text art histogram, like the one below.
+
+You may want to use the function `cat()`. This is similar to `print()`, but prints directly, without vector markers. You can also include newlines `"\n"` when using `cat()`.
+
+For example, the vector
+`c(1, 2, 3, 4, 5, 1, 3, 4, 5, 1, 3, 4, 4, 3, 3, 3, 3)`
+should produce the histogram below - the histogram dislpays the number of times each number appears in the vector.
+
+```
+1 | ***
+2 | *
+3 | *******
+4 | ****
+5 | **
+```
+
