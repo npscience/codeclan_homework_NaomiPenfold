@@ -28,6 +28,9 @@ forecast <- list(
 forecast
 ```
 
+### Review
+Names don't need to be in "" (at either level). Can be, can not be. Unless you have numeric at beginning, then use `3`.
+
 ## Question 2
 
 Using the list you've just made find:
@@ -71,6 +74,8 @@ two_week_forecast <- matrix(c(temps), nrow = 2, ncol = 7, byrow = TRUE)
 two_week_forecast
 
 ```
+### review
+Answer has Ls in the original vector (13L, 14L, etc) - tells R to make it an integer.
 
 ## Question 4
 
@@ -94,7 +99,6 @@ two_week_forecast[,c(1,3,5)]
 
 ```
 
-
 ## Question 5
 
 Write a function that pre-appends "The answer is: " to any character input, while for numeric input, it either just returns the number for numbers less than 10, or divides the number by 10 for numbers greater than 10. For anything else return "Invalid input".
@@ -102,25 +106,77 @@ Write a function that pre-appends "The answer is: " to any character input, whil
 ```{r}
 
 input_to_output <- function(input){
+  # start with numbers, skip to chr if not true
     if(is.numeric(input) == TRUE){
+      # if number less than 10
       if(input < 10){
         return(input)
       }else{
+        # if number >= 10
         return(input / 10) 
       }
     }
+  # if not number, check if character
     if(is.character(input) == TRUE){
-        print(stringr::str_c("The answer is: ", input))       
+        print(stringr::str_c("The answer is: ", input))     
       }else{
+        
+  # if not character either, say invalid
     return("Invalid input")    
   }
 }
 
-input_to_output("help me")
-input_to_output(8)
-input_to_output(123)
-input_to_output(TRUE)
+input_to_output("help me") # "The answer is: help me"
+input_to_output(8) # 8
+input_to_output(123) # 12.3
+input_to_output(TRUE) # "Invalid input"
 
+```
+### homework review
+
+To write functions, first understand what it's asking, write out the cases you need to code for.
+
+Code these one by one: test each input -> output step, put in an if/conditional as needed, then assemble into a function (using generic variable names).
+
+Write it out in "sudo code" first:
+
+      function starts
+      
+      test if whether character or not
+      
+      test if character is number
+        test if greater than 10
+         -> yes --> x/10
+         -> no --> x
+      
+      else
+        -> invalid
+        
+David's code assigns the result to a variable (return_value) then instructs to return_value at the end. My version of this:
+```{r}
+print_answer <- function(input_value){
+  if(is.numeric(input_value)){
+    if(input_value > 10){
+          return_value <- input_value/10
+        }else if(input_value < 10){
+          return_value <- input_value
+        }else{
+        return_value <- "Invalid input"        
+      }
+    }else if(is.character(input_value)){
+          return_value <- stringr::str_c("The answer is:", input_value, sep = " ")
+      }else{
+      return_value <- "Invalid input"        
+      }
+  return(return_value)
+}
+
+print_answer(10)
+print_answer(3)
+print_answer(121)
+print_answer("10")
+print_answer("text")
+print_answer(TRUE)
 ```
 
 
@@ -144,12 +200,16 @@ Write a function which checks if two vectors have the same elements.
 ```{r}
 check_vectors_match <- function(x, y){
 
+  # reject if vectors not same length (error msg at end)
+  # otherwise enter this if
     if(length(x) == length(y)){
     
+      # if exact match as is
       if(all(x == y)){
         
         print("Exactly the same")
-      
+     
+        # otherwise sort then check again 
         }else{
         
         x <- sort(x)
@@ -157,18 +217,15 @@ check_vectors_match <- function(x, y){
         if(all(x == y)){
           
           print("The same")
-          
+         
+          # otherwise -> different 
           }else{
-            
             print("Different")
-            
           }
         }
-      
       }else{
-    
+    # not true for any if -> error msg for vectors not same length
       return("Error: vectors are not the same length")
-        
       }
 }
 
@@ -193,6 +250,41 @@ vector5 <- c(1, 2, 3, 4, 5, 6)
 check_vectors_match(vector1, vector5) 
 # "Error: vectors are not the same length"
 ```
+### homework review
+
+There's a more efficient way to do the sorting step, all in one:
+```
+if(all(sort(x) == sort(y)))
+```
+
+Also, can write this as:
+
+* if -> do this
+* if -> do that
+* return (returns the last line if neither ifs TRUE)
+
+```{r}
+## Provided answer:
+is_same_vector <- function(vector_1, vector_2) {
+  if (all(vector_1 == vector_2)) {
+    return("Exactly the same")
+  }
+
+  if (all(sort(vector_1) == sort(vector_2))) {
+    return("The same")
+  }
+
+  return("Different")
+}
+
+a <- c(1, 2, 3, 4, 5)
+b <- c(1, 4, 2, 3, 5)
+c <- c(9, 4, 8, 1, 0)
+
+is_same_vector(a, a)
+is_same_vector(a, b)
+is_same_vector(a, c)
+```
 
 
 # Extension
@@ -203,6 +295,25 @@ check_vectors_match(vector1, vector5)
 Write code that prints a multiplication table for numbers up to 12. i.e. there will be 12 rows and 12 columns, and each element should be the row number multiplied by the column number.
 
 *From: https://adriann.github.io/programming_problems.html*
+
+```{r}
+# UNFINISHED
+
+# make empty matrix
+table_12 <- matrix(0, nrow=12, ncol=12)
+table_12
+
+# WIP here: not working yet...
+
+for(i in 1:nrow(table_12)){
+  for(i in 1:ncol(table_12)){
+    table_12[i,i] = table_12[i,] * table_12[,i]
+  }
+}
+
+table_12
+```
+
 
 <br>
 
@@ -221,5 +332,27 @@ should produce the histogram below - the histogram dislpays the number of times 
 3 | *******
 4 | ****
 5 | **
+```
+
+```{r}
+
+# UNFINISHED
+
+# first, note what cat() does:
+count <- 3
+cat(rep("*", count))
+
+# make a frequency table for a vector
+# WIP here
+
+
+library(tidyverse)
+x <- c(1, 2, 3, 4, 5, 1, 3, 4, 5, 1, 3, 4, 4, 3, 3, 3, 3)
+freqs <- table(x) # table with counts in 2nd row, needs transposing
+class(freqs) # table
+
+as.data.frame(x)
+%>% summarise(count = count(x))
+
 ```
 
