@@ -531,66 +531,9 @@ then checking if they are equal.</li>
 </ul>
 </details>
 </blockquote>
-<pre class="r"><code># check if elements at same index match
-vector1 &lt;- c(1,2,3,4,5)
-vector2 &lt;- c(1,2,3,4,5)
-n &lt;- length(vector1)
-matching_vector &lt;- c(1:length(vector1))
-
-make_match_vector &lt;- function(matching_vector){
-  for(i in 1:n){
-    result &lt;- as.logical(vector1[i] == vector2[i])
-    matching_vector[i] &lt;- result
-  }
-}
-
-make_match_vector(matching_vector)
-matching_vector</code></pre>
-<pre><code>## [1] 1 2 3 4 5</code></pre>
-<pre class="r"><code>vector3 &lt;- as.logical(vector1[1] == vector2[1])
-vector</code></pre>
-<pre><code>## function (mode = &quot;logical&quot;, length = 0L) 
-## .Internal(vector(mode, length))
-## &lt;bytecode: 0x110b1f7c8&gt;
-## &lt;environment: namespace:base&gt;</code></pre>
-<pre class="r"><code>vector1[4]</code></pre>
-<pre><code>## [1] 4</code></pre>
-<pre class="r"><code>vector2[4]</code></pre>
-<pre><code>## [1] 4</code></pre>
-<pre class="r"><code>n &lt;- length(vector1)
-n2 &lt;- length(vector2)
-for(i in 1:n)
-if(vector1[i] == vector2[i])
-print</code></pre>
-<pre class="r"><code>check_vectors_match &lt;- function(vector1, vector2){
-  if(length(vector1) == length(vector2)){
-      for(i in 1:length(vector1)){
-        matching_vector[i] &lt;- as.logical(vector1[i] == vector2[i])
-      }
-      if(all(matching_vector) == TRUE){
-        print(&quot;Exactly the same&quot;)
-      }else{
-        sort(vector1)
-        sort(vector2)
-        # match function
-        if(all(match) == TRUE){
-        print(&quot;The same&quot;)
-        }else{
-          print(&quot;Different&quot;)
-        }
-      }
-      
-      
-  }else{
-    return(&quot;Error: vectors are not the same length&quot;)
-  }
-  
-
-}</code></pre>
 <pre class="r"><code>check_vectors_match &lt;- function(x, y){
 
     if(length(x) == length(y)){
-      
     
       if(all(x == y)){
         
@@ -601,20 +544,21 @@ print</code></pre>
         x &lt;- sort(x)
         y &lt;- sort(y)
         if(all(x == y)){
+          
           print(&quot;The same&quot;)
+          
           }else{
             
             print(&quot;Different&quot;)
             
           }
-        
         }
       
       }else{
     
       return(&quot;Error: vectors are not the same length&quot;)
+        
       }
-  
 }
 
 # Test 1: 2 exactly same vectors

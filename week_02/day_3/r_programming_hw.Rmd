@@ -140,77 +140,11 @@ Write a function which checks if two vectors have the same elements.
 </details>
 </blockquote>
 
-```{r}
-# check if elements at same index match
-vector1 <- c(1,2,3,4,5)
-vector2 <- c(1,2,3,4,5)
-n <- length(vector1)
-matching_vector <- c(1:length(vector1))
-
-make_match_vector <- function(matching_vector){
-  for(i in 1:n){
-    result <- as.logical(vector1[i] == vector2[i])
-    matching_vector[i] <- result
-  }
-}
-
-make_match_vector(matching_vector)
-matching_vector
-
-
-
-vector3 <- as.logical(vector1[1] == vector2[1])
-vector
-vector1[4]
-vector2[4]
-
-n <- length(vector1)
-n2 <- length(vector2)
-for(i in 1:n)
-if(vector1[i] == vector2[i])
-print
-
-```
-
-
-```{r}
-
-
-check_vectors_match <- function(vector1, vector2){
-  if(length(vector1) == length(vector2)){
-      for(i in 1:length(vector1)){
-        matching_vector[i] <- as.logical(vector1[i] == vector2[i])
-      }
-      if(all(matching_vector) == TRUE){
-        print("Exactly the same")
-      }else{
-        sort(vector1)
-        sort(vector2)
-        # match function
-        if(all(match) == TRUE){
-        print("The same")
-        }else{
-          print("Different")
-        }
-      }
-      
-      
-  }else{
-    return("Error: vectors are not the same length")
-  }
-  
-
-}
-```
-
-
-
 
 ```{r}
 check_vectors_match <- function(x, y){
 
     if(length(x) == length(y)){
-      
     
       if(all(x == y)){
         
@@ -221,20 +155,21 @@ check_vectors_match <- function(x, y){
         x <- sort(x)
         y <- sort(y)
         if(all(x == y)){
+          
           print("The same")
+          
           }else{
             
             print("Different")
             
           }
-        
         }
       
       }else{
     
       return("Error: vectors are not the same length")
+        
       }
-  
 }
 
 # Test 1: 2 exactly same vectors
