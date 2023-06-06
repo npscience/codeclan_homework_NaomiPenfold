@@ -128,6 +128,7 @@ WHERE email ILIKE '_%yahoo%';
 /* Q13 */
 -- Count the number of pension enrolled employees 
 -- not based in either France or Germany.
+-- homework review: no need for first _, covered by %
 
 SELECT 
 	count(id)
@@ -201,11 +202,7 @@ SELECT
 	first_name, last_name, department, start_date,
 	concat(first_name, ' ', last_name, ' - ', department, ' (joined ',
 		-- use sub-query to get month
-		(SELECT TO_CHAR(start_date, 'Mon')),
-		-- note the sub-query works without FROM !!
-		-- note 'Mon' returns first 3 letters of month
-		-- while 'Month' returns 9 characters, so July + 5 spaces, or December + 1 space
-		-- I prefer 'Mon' for spacing reasons
+		(SELECT TO_CHAR(start_date, 'FMMonth')),
 		' ', 
 		-- use extract to get year
 		EXTRACT(YEAR FROM start_date), ')') AS badge_label
@@ -219,6 +216,17 @@ WHERE
 	AND 
 	start_date NOTNULL;
 
+-- note the sub-query works without FROM !!
+-- note 'Mon' returns first 3 letters of month
+-- while 'Month' returns 9 characters, so July + 5 spaces, or December + 1 space
+-- I prefer 'Mon' for spacing reasons
+-- UPDATE from homework review: 'FMMonth' gets the full month without additional spaces!!
+-- "Note: In this last solution we added FM in front of Month. 
+-- "When using the TO_CHAR() function, its default is to add leading and trailing spaces to the string.
+-- "FM removes these spaces."
+-- see postgreSQL docs: https://www.postgresql.org/docs/current/functions-formatting.html
+
+
 /* Q18 */
 -- Return the first_name, last_name and salary of all employees 
 -- together with a new column called salary_class with a value 'low' 
@@ -231,6 +239,19 @@ SELECT
 	(CASE WHEN salary < 40000 THEN 'low' ELSE 'high' END) AS salary_class
 FROM employees 
 WHERE salary NOTNULL;
+
+-- homework review - take care with NULLs, keep them in
+-- homework answer:
+
+SELECT 
+  first_name, 
+  last_name, 
+  CASE 
+    WHEN salary < 40000 THEN 'low'
+    WHEN salary IS NULL THEN NULL
+    ELSE 'high' 
+  END AS salary_class
+FROM employees;
 
 
 
