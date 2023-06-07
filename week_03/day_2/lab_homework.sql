@@ -80,10 +80,22 @@ SELECT
 	charge_cost AS "chr",
 	charge_cost :: INTEGER AS "int", 
 	-- from: https://www.commandprompt.com/education/how-to-convert-a-string-to-a-number-in-postgresql/
-	CAST( charge_cost AS INTEGER) AS "int_cast"
+	CAST(charge_cost AS INT) AS "int_cast",
 	-- from: https://www.postgresqltutorial.com/postgresql-tutorial/postgresql-cast/
+	-- not just postgresql: https://www.w3schools.com/sql/func_sqlserver_cast.asp
+	to_number(charge_cost, '999') AS to_num -- from homework review
 FROM teams ;
 
+-- From homework review:
+--  < value AS INT > is a way to convert too
+-- :: INT is postgreSQL specific.
+-- could also use to_number(value, format) 
+	-- https://www.postgresql.org/docs/current/functions-formatting.html
+	-- note the 9G999D9S formatting prompt (see table at bottom of docs)
+
+-- how to know what is "base" SQL vs postgres? 
+-- Consider ANSI SQL as "base" and see reserved words for this at
+-- https://www.sqlstyle.guide/#reserved-keyword-reference
 
 -- Q2.(a)
 
@@ -195,6 +207,9 @@ FROM employees AS e
 GROUP BY t.name
 ORDER BY count(e.id) ASC;
 
+-- From homework review:
+-- Can use num_employees in ORDER BY because runs after SELECT
+
 
 -- Q4.(a)
 
@@ -253,7 +268,7 @@ FROM teams AS t
 GROUP BY t.id;
 -- returns 10 rows (10 teams)
 
-
+-- homework review: uses CAST(value AS INT) here
 
 
 -- 4.(c)
