@@ -55,6 +55,20 @@ theme_kwikbit <- function(){
 }
 ```
 
+### Homework review
+
+From answers, made theme from scratch:
+```{r}
+theme_qb <- 
+  theme(
+    text = element_text(size = 12),
+    title = element_text(size = 14),
+    axis.text = element_text(size = 10),
+    panel.background = element_rect(fill = "white"),
+    panel.grid = element_line(colour = "grey90", linetype = "dashed")
+  )
+```
+
 
 ## 2.1.1 - make plot
 
@@ -117,6 +131,9 @@ qb_monthly_sales %>%
     theme_kwikbit()
 ```
 
+### Homework review
+
+From answers, could specify item in col_scheme like this: `colour = col_scheme[3]`.
 
 ## 2.1.3 - make plot
 
@@ -146,11 +163,20 @@ qb_monthly_sales %>%
     colour = "Cashflow"
   ) +
   scale_y_continuous(
-    limits = c(1500,3000)
+    limits = c(1500,3000), 
+    labels = scales::dollar_format(prefix = "£") # from answers
     ) +
-  theme_kwikbit()
+  scale_x_date(date_breaks = "1 month", date_labels = "%b-%y") + # from Emma!
+  theme_kwikbit() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) # to update after Emma's addition
 ```
+### Homework review
 
+You can label y axis within the scale function! And also give a currency sign: 
+`scale_y_continuous("Sales", labels = scales::dollar_format(prefix = "£"))`
+
+Emma used this to correct the x axis dates:
+`scale_x_date(date_breaks = "1 month", date_labels = "%b-%y")`
 
 ## 2.1.4 - make plot
 
@@ -161,6 +187,9 @@ ggplot(qb_competitors) +
   aes(x = year, y = revenue, fill = company) +
   geom_area()
 ```
+### Homework review
+
+Answers includes (before ggplot) `options(scipen = 999)` - and y-axis is then with 7 sig digits, e.g. 6000000.
 
 ## 2.2.4 - prettify plot
 

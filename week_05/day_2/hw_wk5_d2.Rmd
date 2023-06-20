@@ -1,0 +1,199 @@
+---
+title: "advanced ggplot2 homework (wk5d2)"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(CodeClanData)
+```
+
+# Q1 Inspect data
+
+```{r}
+backpack <- backpack
+```
+
+Dim: 100 obs x 9 variables
+
+```{r}
+glimpse(backpack)
+```
+
+Variables:
+
+* backpack weights
+* body weight of student
+* ratio (body weight to backpack weight?)
+* back problems (0,1 == F,T)
+* major subject
+* year of study
+* sex
+* status (U = undergrad, G = grad??)
+* units = course units obtained so far ?? - not sure.
+
+# Q2: backpack weight distribution
+
+_Task: What is the distribution of backpack weights that students are carrying? Choose an appropriate graph to show the distribution._
+
+Use a histogram:
+
+```{r}
+backpack %>% 
+  ggplot() +
+  aes(x = backpack_weight) +
+  geom_histogram(binwidth = 3, colour = "white", fill = "darkred") +
+  labs(x = "\nWeight", y = "Frequency\n", title = "Backpack weights of students\n") +
+  scale_y_continuous(breaks = c(4,8,12,16,20,24,28)) +
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black"))
+```
+With bins of 4, this plot shows us that most students carry a bag with a weight between 4 and 20 units (assume kg?). The distribution is skewed left, i.e. towards the lower weight backpacks, with a few students carrying much heavier backpacks.
+
+# Q3: Backpack weight by sex
+
+_Task: Are there differences in backpack weight between sex?_
+
+Do a histogram and split the data by sex (group, facet_wrap)
+
+```{r}
+backpack %>% 
+  ggplot() +
+  aes(x = backpack_weight, group = sex, fill = sex) +
+  geom_histogram(binwidth = 3, colour = "white") +
+  labs(x = "\nWeight", y = "Frequency\n", title = "Backpack weights of students\n", fill = "Sex") +
+  scale_y_continuous(breaks = c(4,8,12,16,20,24,28)) +
+  facet_wrap(~sex, ncol=1) +
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black")) +
+  scale_fill_manual(values = c(
+    "Female" = "coral",
+    "Male" = "darkred"
+  ))
+```
+
+The distribution of weights for females is skewed more left, which indicates that female students tend to carry lighter backpacks.
+
+# Q4: body weight v backpack weight
+
+_Task: What is the relationship between body weight and backpack weight?_
+
+Do a scatter plot first
+
+```{r}
+backpack %>% 
+  ggplot() +
+  aes(x = body_weight, y = backpack_weight) +
+  geom_point(colour = "grey20") +
+  geom_smooth(method = lm, colour = "darkblue") +
+  labs(x = "Student body weight", y = "Backpack weight") +
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black"))
+```
+It looks as though there is a small positive trend, such that the students with higher body weights carry heavier backpacks. However, remember that male students carry heavier backpacks, and male students may be heavier, so it may be wroth understanding trends for each sex independently.
+
+# Q5: body weight v backpack weight by sex
+
+_Task: Is this relationship different between men and women? Choose an appropriate plot and interpret your findings._
+
+```{r}
+backpack %>% 
+  ggplot() +
+  aes(x = body_weight, y = backpack_weight, group = sex) +
+  geom_point(aes(colour = sex)) +
+  geom_smooth(method = lm, aes(colour = sex)) +
+  labs(x = "Student body weight", y = "Backpack weight") +
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black")) +
+  facet_wrap(~ sex, ncol = 1) +
+  scale_colour_manual(values = c(
+    "Female" = "coral",
+    "Male" = "darkred"
+  ))
+```
+Splitting by sex shows that the male students are typically heavier than female students, and that the female students may have a small positive trend with body weight and backpack weight, while this trend is less pronounced in the males. 
+
+# Q6: back pain
+
+_Task: What proportion of students report back pain?_
+
+```{r}
+backpack %>% 
+  mutate(back_problems = as.logical(back_problems)) %>% 
+  group_by(back_problems) %>% 
+  summarise(count = n()) %>% 
+  #mutate(back_problems = as.logical(back_problems)) %>% 
+  ggplot() +
+  aes(x = "", y = count, fill = back_problems) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("TRUE" = "goldenrod1", "FALSE" = "grey60")) +
+  xlab(NULL) +
+  labs(y = "Frequency", fill = "Back problems\nreported") +
+  geom_text(aes(label = count), vjust = 5) + 
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black"))
+```
+
+32% of students report back problems.
+
+# Q7: back pain by sex
+
+_Task: Is this proportion different between men and women?_
+
+```{r}
+backpack %>% 
+  mutate(back_problems = as.logical(back_problems)) %>% 
+  group_by(sex, back_problems) %>% 
+  summarise(count = n()) %>% 
+  #mutate(back_problems = as.logical(back_problems)) %>% 
+  ggplot() +
+  aes(x = sex, y = count, fill = back_problems) +
+  geom_col(position = "stack") +
+  scale_fill_manual(values = c("TRUE" = "goldenrod1", "FALSE" = "grey60")) +
+  labs(fill = "Back problems\n reported", y = "Frequency", x = "Sex") +
+  geom_text(aes(label = count), vjust = 3) +
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black"))
+```
+
+When split by sex, we can see that a much higher proportion of female students report back problems than male students. It's nearly 50:50 in females (24 / 55 report problems), while it is much smaller proportion in males (8/45 report problems).
+
+# Q8:
+
+_Task: Now you’ve investigated your data separately, create plots to describe the relationship between backpack weight, body weight, gender and reported backpain._
+
+_Try both backpack_weight and body_weight as well as the ratio._
+
+_Hint: faceting would be useful here._
+
+```{r}
+# use body weight and backpack weight directly
+backpack %>%
+  mutate(back_problems = as.logical(back_problems)) %>% 
+  ggplot() +
+  aes(x = body_weight, y = backpack_weight, group = sex) +
+  geom_point(aes(colour = sex)) +
+  geom_smooth(method = lm, aes(colour = sex)) +
+  labs(x = "Student body weight", y = "Backpack weight") +
+  scale_colour_manual(values = c("Female" = "coral", "Male" = "darkred")) +
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black")) +
+  facet_wrap(sex ~ back_problems)
+```
+
+It does not look like there is any relationship between back problems and backpack weight, sex or body weight. For either male or female students, the students who report back problems are not those carrying the heaviest bags, nor are they those with the highest body weights. There are very few male students who report back problems, so the trend line does not convey much information in that graph.
+
+```{r}
+backpack %>%
+  mutate(back_problems = as.logical(back_problems)) %>% 
+  ggplot() +
+  aes(x = ratio, fill = sex) +
+  geom_histogram(binwidth=0.02, colour = "white") +
+  facet_wrap(back_problems ~ sex) +
+  labs(x = "Ratio of backpack weight to student body weight", y = "Frequency", fill = "Sex") +
+  scale_fill_manual(values = c("Female" = "coral", "Male" = "darkred")) +
+  theme_classic() +
+  theme(panel.grid.major.y = element_line(linetype = "dotted", size = 0.5, colour = "black"))
+```
+
+However, this view looking at ratio of backpack weight to body weight indicates that the female students reporting back problems tend to have a heavier backpack relative to their own weight; there's very few male students reporting back problems so it is difficult to comment on relationships in the data for male students with back pain.
