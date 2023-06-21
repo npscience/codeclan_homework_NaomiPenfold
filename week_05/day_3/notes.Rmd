@@ -105,14 +105,20 @@ all_sectors <- energy_scot %>%
 
 ```{r}
 energy_scot %>%
-      filter(Sector == "Gas") %>% 
+      filter(Sector == "Renewables") %>% 
       ggplot() +
       aes(x = Year, y = EnergyProd, colour = Sector) +
-      geom_line(show.legend = FALSE, size = 1.5) +
-      geom_point(show.legend = FALSE, size = 3) +
-      labs(x = "Year", y = "Energy production") +
+      geom_line(show.legend = FALSE, size = 1) +
+      geom_point(show.legend = FALSE, size = 2) +
+      labs(x = "\nYear", y = "Energy production\n") +
       scale_colour_brewer(palette = "Dark2") +
-      scale_x_continuous(breaks = c(2004,2006,2008,2010,2012,2014,2016,2018)) +
+      scale_x_continuous(breaks = c(2004,2008,2012,2016,2020)) +
+      scale_y_continuous(limits = c(0,30000), labels = scales::comma) +
       theme_minimal()
+```
+
+```{r}
+energy_scot %>% 
+  arrange(desc(EnergyProd))
 ```
 
