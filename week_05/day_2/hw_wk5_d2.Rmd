@@ -122,7 +122,6 @@ backpack %>%
   mutate(back_problems = as.logical(back_problems)) %>% 
   group_by(back_problems) %>% 
   summarise(count = n()) %>% 
-  #mutate(back_problems = as.logical(back_problems)) %>% 
   ggplot() +
   aes(x = "", y = count, fill = back_problems) +
   geom_col(position = "stack") +
@@ -135,6 +134,44 @@ backpack %>%
 ```
 
 32% of students report back problems.
+
+## From homework review:
+
+To remove legend, you can use either of:
+
+* `geom_bar(show.legend = FALSE)`
+* `theme(legend.position = "none")`
+
+Can we do this without wrangling our data?
+
+```{r}
+backpack %>% 
+  ggplot(aes(x = "", fill = factor(back_problems))) +
+  geom_bar(position = "fill") #+
+  #geom_text(position= position_fill(), labels = after_stat(count), stat = "identity")
+  
+```
+
+I still can't get labels. Something to do with how to specify it. Easier to wrangle data first then do simpler ggplot. Keep looking, e.g. https://r-graph-gallery.com/48-grouped-barplot-with-ggplot2.
+
+
+
+## Thijmen's
+
+```{r}
+backpack1 <- backpack %>% 
+  mutate(back_problems = recode(back_problems,
+                               "1" = "Back problem",
+                                "0" = "No back problem"))
+backpack1 %>% 
+ggplot(aes(x = back_problems, y = after_stat(prop), group = 1)) +
+  geom_bar() +    
+  xlab("Back issues among students") +
+  ylab("Percentage") +
+  ggtitle("Percentage students with back issues") +
+  scale_y_continuous(labels = scales::percent_format())
+```
+
 
 # Q7: back pain by sex
 

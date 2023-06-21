@@ -1,0 +1,118 @@
+---
+title: "My Shiny app"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(CodeClanData)
+library(bslib)
+```
+
+```{r}
+CodeClanData::energy_scotland
+```
+
+```{r}
+CodeClanData::EUbank %>% 
+  filter(crisis > 0)
+```
+
+```{r}
+CodeClanData::hills2000
+```
+
+```{r}
+CodeClanData::kickstarter
+```
+
+```{r}
+CodeClanData::world
+```
+
+```{r}
+CodeClanData::women_in_gov
+```
+
+```{r}
+CodeClanData::whisky
+```
+
+# Energy Scotland
+
+
+```{r}
+energy_scot <- energy_scotland
+```
+
+Plot composition of total energy production by year.
+
+```{r}
+energy_scot %>% 
+  ggplot() +
+  aes(x = Year, y = EnergyProd, fill = Sector) +
+  geom_col(position = "stack") +
+  labs(x = "Year", y = "Energy production", fill = "Sector") +
+  scale_fill_brewer(palette = "Dark2") +
+  scale_x_continuous(breaks = c(2004,2006,2008,2010,2012,2014,2016,2018))
+```
+
+Manual colours:
+```{r}
+energy_scot %>% 
+  ggplot() +
+  aes(x = Year, y = EnergyProd, fill = Sector) +
+  geom_col(position = "stack") +
+  labs(x = "Year", y = "Energy production", fill = "Sector") +
+  scale_fill_manual(values = c(
+    "Renewables" = "#1b9e77",
+    "Pumped hydro" = "#d95f02",
+    "Nuclear" = "#7570b3",
+    "Coal" = "#e7298a",
+    "Oil" = "#66a61e",
+    "Gas" = "#e6ab02"
+  )) +
+  scale_x_continuous(breaks = c(2004,2006,2008,2010,2012,2014,2016,2018))
+```
+
+
+Plot energy production by year per sector:
+
+```{r}
+energy_scot %>%
+  filter(Sector == "Pumped hydro") %>% 
+  ggplot() +
+  aes(x = Year, y = EnergyProd, colour = Sector) +
+  geom_line(show.legend = FALSE, size = 1.5) +
+  geom_point(show.legend = FALSE, size = 3) +
+  labs(x = "Year", y = "Energy production") +
+  scale_colour_manual(values = c(
+    "Renewables" = "#1b9e77",
+    "Pumped hydro" = "#d95f02",
+    "Nuclear" = "#7570b3",
+    "Coal" = "#e7298a",
+    "Oil" = "#66a61e",
+    "Gas" = "#e6ab02"
+  )) +
+  scale_x_continuous(breaks = c(2004,2006,2008,2010,2012,2014,2016,2018))
+```
+
+```{r}
+all_sectors <- energy_scot %>% 
+  distinct(Sector) %>% 
+  pull()
+```
+
+```{r}
+energy_scot %>%
+      filter(Sector == "Gas") %>% 
+      ggplot() +
+      aes(x = Year, y = EnergyProd, colour = Sector) +
+      geom_line(show.legend = FALSE, size = 1.5) +
+      geom_point(show.legend = FALSE, size = 3) +
+      labs(x = "Year", y = "Energy production") +
+      scale_colour_brewer(palette = "Dark2") +
+      scale_x_continuous(breaks = c(2004,2006,2008,2010,2012,2014,2016,2018)) +
+      theme_minimal()
+```
+
