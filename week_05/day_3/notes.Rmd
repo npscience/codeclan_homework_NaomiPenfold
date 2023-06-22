@@ -122,3 +122,11 @@ energy_scot %>%
   arrange(desc(EnergyProd))
 ```
 
+## Review
+
+It is possible to update the input list depending on choices, using `updateSelectInput()`, requires passing in your session as an argument (not sure i understand this yet) - https://shiny.posit.co/r/reference/shiny/0.14/updateselectinput.
+
+To improve:
+
+* define colour scheme at top, then refer to it in plots (efficiency)
+* could add a year slider to inspect specific years
