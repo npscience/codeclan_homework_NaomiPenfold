@@ -13,7 +13,7 @@ library(CodeClanData)
 Suggested: games
 
 ```{r}
-game_sales <- game_sales
+game_sales <- CodeClanData::game_sales
 ```
 
 ```{r}
@@ -85,6 +85,10 @@ Of these, Nintendo and Ubisoft are the only two developers that self-publish onl
 
 To make this perceived "availability" obvious, could show a drill-down into developer data showing publishers they have worked with in the past, e.g. games by publisher, or publisher sales by year -- if only one, themselves, this information will be more clear.
 
+### Big & little developers
+
+#### big developers
+
 Are there big developers here that outscale the rest? How big are the big developers?
 
 ```{r}
@@ -118,6 +122,8 @@ game_sales %>%
 
 EA and Ubisoft are much bigger producers since 2010; Capcom was a big dev but not in more recent years. Considering filtering EA and Ubisoft out (particularly since Ubisoft only self-publish).
 
+**Could exclude: EA, Ubisoft, Capcom**
+
 ```{r}
 big_devs <- game_sales %>% 
   group_by(developer) %>% 
@@ -131,6 +137,36 @@ game_sales %>%
   summarise(n()) %>% 
   arrange(developer, year_of_release)
 ```
+
+#### little developers
+```{r}
+# smallest developers
+game_sales %>% 
+  filter(year_of_release >= 2010) %>% 
+  group_by(developer) %>% 
+  summarise(num_games = n()) %>% 
+  arrange(num_games)
+```
+
+Three developers with <10 games released since 2010: Neversoft, Maxis, Vicarious Visions
+
+### filter the data to play with
+
+remove big & little developers (since 2010): Neversoft, Maxis, Vicarious Visions, EA, Ubisoft
+
+Filter data for 2010+
+
+```{r}
+game_sales %>% 
+  # filter for games released since 2010
+  filter(year_of_release >= 2010) %>% 
+  # remove higher & lower productive developers
+  filter(!(developer %in% c("EA", "Ubisoft", "Neversoft Entertainment", "Maxis", "Vicarious Visions"))) %>% 
+  group_by(developer) %>% 
+  summarise(count = n())
+```
+
+
 
 # Revised idea
 
@@ -213,6 +249,7 @@ game_sales %>%
   labs(y = "Number of games released", x = "Year", fill = "Developer") +
   facet_wrap(~ developer, ncol = 4) +
   theme_minimal() +
+  theme(strip.text.x = element_text(size = 12))
   # theme for cyborg
   theme(legend.position = "bottom", 
         plot.background = element_rect(fill = "black"),
@@ -240,15 +277,41 @@ For developer tab?
 Scatter year by user_score / critic_score, bubble size sales, hover-over game name < - for developer tab
 
 ```{r}
+# with name labels
 game_sales %>% 
-  filter(developer == "Nintendo") %>%
-  filter(stringr::str_detect(.$name, "Mario")) %>% 
+  filter(developer %in% c("Nintendo","Capcom")) %>%
   ggplot() +
   aes(x = critic_score, y = user_score, colour = developer, label = name) +
   geom_point(show.legend = FALSE) +
   geom_text(vjust = 0.6, hjust = 1.2, size = 2) +
   scale_colour_manual(values = developer_colour_scheme)
 ```
+
+```{r}
+# without name labels, with trend lines
+game_sales %>% 
+  filter(developer %in% c("Nintendo","Capcom")) %>%
+  ggplot() +
+  aes(x = critic_score, y = user_score, colour = developer) +
+  geom_point() +
+  geom_smooth(method = lm, se = FALSE) +
+  scale_colour_manual(values = developer_colour_scheme) +
+  labs(x = "Critic score", y = "User score", colour = "Developer") +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+# sales by developer
+game_sales %>% 
+  filter(developer %in% c("Nintendo","Capcom", "Maxis")) %>%
+  ggplot() +
+  aes(y = reorder(developer, -sales), x = sales, fill = developer) +
+  geom_col(show.legend = FALSE) +
+  scale_colour_manual(values = developer_colour_scheme) +
+  labs(x = "Sales", y = "Developer")
+```
+
+
 
 ```{r}
 game_sales %>% 
@@ -281,4 +344,3 @@ game_sales %>%
   select(name,developer,year_of_release) %>% 
   arrange(desc(year_of_release), developer, name)
 ```
-
