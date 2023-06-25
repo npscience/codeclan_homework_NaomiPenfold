@@ -13,7 +13,7 @@ library(CodeClanData)
 Suggested: games
 
 ```{r}
-game_sales
+game_sales <- game_sales
 ```
 
 ```{r}
@@ -201,17 +201,30 @@ game_sales %>%
 
 # bar chart
 game_sales %>% 
-  filter(year_of_release >= 2000) %>% # have a year filter for this chart, slider range
-  filter(!developer %in% c("EA", "Ubisoft")) %>% 
+  filter(year_of_release %in% c(2000:2010)) %>% # have a year filter for this chart, slider range
+  filter(developer %in% c("EA", "Ubisoft")) %>% # HAVE A MULTI-DEVELOPER CHECKBOX
   group_by(developer, year_of_release) %>% 
   summarise(num_games = n()) %>% 
   ungroup() %>% 
   ggplot() +
   aes(x = year_of_release, y = num_games, fill = developer) +
-  geom_col() +
+  geom_col(show.legend = FALSE) +
   scale_fill_manual(values = developer_colour_scheme) +
-  theme(legend.position = "bottom") +
-  facet_wrap(~ developer, ncol = 4)
+  labs(y = "Number of games released", x = "Year", fill = "Developer") +
+  facet_wrap(~ developer, ncol = 4) +
+  theme_minimal() +
+  # theme for cyborg
+  theme(legend.position = "bottom", 
+        plot.background = element_rect(fill = "black"),
+        legend.text = element_text(colour = "white"),
+        legend.title = element_text(colour = "white"),
+        plot.title = element_text(colour = "white"),
+        strip.text = element_text(colour = "white"),
+        axis.text = element_text(colour = "white"),
+        axis.title = element_text(colour = "white"))
+
+# to do: change year to datetime to stop it labelling x-axis with decimals
+# to do: make a theme to use with bs theme: cyborg
 ```
 
 Have a year_slider for all the charts on this page - also include filter for genre and rating?
@@ -225,3 +238,47 @@ New tab? Add something about genre and sales/score - so publisher can pick which
 For developer tab?
 
 Scatter year by user_score / critic_score, bubble size sales, hover-over game name < - for developer tab
+
+```{r}
+game_sales %>% 
+  filter(developer == "Nintendo") %>%
+  filter(stringr::str_detect(.$name, "Mario")) %>% 
+  ggplot() +
+  aes(x = critic_score, y = user_score, colour = developer, label = name) +
+  geom_point(show.legend = FALSE) +
+  geom_text(vjust = 0.6, hjust = 1.2, size = 2) +
+  scale_colour_manual(values = developer_colour_scheme)
+```
+
+```{r}
+game_sales %>% 
+  distinct(platform)
+```
+### Set up input lists
+
+```{r}
+year_list <- c(min(game_sales$year_of_release):max(game_sales$year_of_release))
+```
+
+Make year column to int not dbl:
+```{r}
+game_sales %>% 
+  mutate(year = as.integer(year_of_release), .before = year_of_release)
+```
+
+# tab 1: table output for developers & years filter
+
+to show game names, with developer name, and in order of year released
+
+```{r}
+# most recent games
+game_sales %>% 
+  # add year range filter
+  filter(year_of_release >= 2010 & 
+           year_of_release <= 2016) %>%
+  # add multi-select developer input
+  filter(developer %in% c("Capcom", "EA", "Namco")) %>% 
+  select(name,developer,year_of_release) %>% 
+  arrange(desc(year_of_release), developer, name)
+```
+
