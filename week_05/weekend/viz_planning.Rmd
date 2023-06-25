@@ -1,0 +1,227 @@
+---
+title: "Planning Shiny app"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(CodeClanData)
+```
+
+# explore data
+
+Suggested: games
+
+```{r}
+game_sales
+```
+
+```{r}
+glimpse(game_sales)
+```
+
+# Planning concept & purpose
+
+## Initial ideas
+
+* Find top 10 rated (user_score - or critic_score, user option) games in a certain year range, colour it by the developer (or publisher <- option for user)
+  * Show also the sales for same period.
+  * Show also total sales by publisher or developer.
+  * Show which publisher publishes which developer.
+* show total sales, coloured by game, for each developer, by publisher (option) - i.e. assume i am a publisher and want to see how my developers are performing -- dynamic inputlist depending on which publisher? (if poss)
+* have a tab with the data loaded, and filters at the top for publisher, developer, game (name), platform
+  * or just developer, platform, rating -- assuming I am a publisher, looking to build my portfolio of which games to publish
+
+## Understanding pub<->dev relationships
+
+```{r}
+# which publisher publishes which developer
+
+# make list of developer names in the df
+developers <- unique(game_sales$developer)
+
+# make colorblind-friendly palette of colours equal to the number of developers in the df
+colours_ndev <- Polychrome::createPalette(N = length(unique(game_sales$developer)), seedcolors = c("#ff0000", "#00ff00", "#0000ff"), target = c("normal", "protanope", "deuteranope", "tritanope"))
+
+# make colour scheme vector matching developer name to colour in palette
+developer_colour_scheme <- setNames(colours_ndev, developers)
+
+# plot bars
+game_sales %>% 
+  ggplot() +
+  # order developers by count, highest first
+  aes(y = forcats::fct_rev(forcats::fct_infreq(publisher)), fill = factor(developer)) +
+  geom_bar(position = "stack") +
+  # use generated colour scheme
+  scale_fill_manual(values = developer_colour_scheme) +
+  labs(y = "Publisher", x = "Number of games published", fill = "Developer")
+```
+Iis it meaningful to inspect publisher::developer relationships?
+
+The above plot shows that publishers have 1 or more developers they publish (i.e. a portfolio of developers). How many developers have more than one publisher? Are they available for a prospective publisher to work with?
+
+```{r}
+game_sales %>% 
+  group_by(developer,publisher) %>% 
+  summarise(n = n()) %>% 
+  ungroup() %>% 
+  group_by(developer) %>% 
+  summarise(num_publishers = n()) %>% 
+  arrange(desc(num_publishers))
+```
+Several developers have worked with more than one publisher, which suggests they are open to working with a prospective publisher.
+
+Which developers only self-publish? (And thus are likely unavailable to a new publisher)
+
+```{r}
+game_sales %>% 
+  group_by(developer,publisher) %>% 
+  summarise(n = n())
+```
+
+Capcom, Codemasters, EA (Electronic Arts), Konami (Konami Digital Entertainment), Nintendo, Ubisoft all self-publish.
+
+Of these, Nintendo and Ubisoft are the only two developers that self-publish only. Maybe they are not open to working with other publishers, so perhaps not meaningful to include them as a developer option for a prospective publisher, although it is still useful to include as competition. 
+
+To make this perceived "availability" obvious, could show a drill-down into developer data showing publishers they have worked with in the past, e.g. games by publisher, or publisher sales by year -- if only one, themselves, this information will be more clear.
+
+Are there big developers here that outscale the rest? How big are the big developers?
+
+```{r}
+# big developers in all-time
+game_sales %>% 
+  group_by(developer) %>% 
+  summarise(num_games = n()) %>% 
+  arrange(desc(num_games))
+
+# big developers since 2010
+game_sales %>% 
+  filter(year_of_release >= 2010) %>% 
+  group_by(developer) %>% 
+  summarise(num_games = n()) %>% 
+  arrange(desc(num_games))
+
+# big developers before 2010
+game_sales %>% 
+  filter(year_of_release < 2010) %>% 
+  group_by(developer) %>% 
+  summarise(num_games = n()) %>% 
+  arrange(desc(num_games))
+
+# big devs since 2000
+game_sales %>% 
+  filter(year_of_release >= 2000) %>% 
+  group_by(developer) %>% 
+  summarise(num_games = n()) %>% 
+  arrange(desc(num_games))
+```
+
+EA and Ubisoft are much bigger producers since 2010; Capcom was a big dev but not in more recent years. Considering filtering EA and Ubisoft out (particularly since Ubisoft only self-publish).
+
+```{r}
+big_devs <- game_sales %>% 
+  group_by(developer) %>% 
+  summarise(num_games = n()) %>% 
+  filter(num_games > 60) %>% 
+  pull(developer)
+
+game_sales %>% 
+  filter(developer %in% big_devs) %>% 
+  group_by(name, developer, year_of_release) %>% 
+  summarise(n()) %>% 
+  arrange(developer, year_of_release)
+```
+
+# Revised idea
+
+Purpose: I am a building an app for a prospective publisher, who are looking to understand which developers to work with, according to their previous success. The publisher wants to also understand who their competitors are for any potential developer collaborations (i.e. competitors here are other publishers who have worked with the developer(s) of interest.)
+
+RShiny app to show:
+
+Tab 1: Overview of game success by developers --> to inform which developers to inspect.
+
+Tab 2: Drill-down into developer tab, e.g. who have they worked with, when, for what game, to what success.
+
+Tab 3: the raw data, with useful filter options.
+
+
+## Tab 1 example plots
+
+To understand developer performance, show overall landscape
+
+```{r}
+glimpse(game_sales)
+```
+ 
+**Variables of interest:**
+
+About the games:
+
+* name (of game)
+* platform
+* genre (of game)
+* rating
+* year_of_release
+
+KPIs:
+
+* sales
+* critic_score
+* user_score
+
+Show: by developer (group)
+
+With filter for genre? rating?
++ slider input for year range
+
+Try a chart with x = year, y = total_sales, grouped by developer
+
+```{r}
+# game releases by developer since 2010
+
+# line chart
+game_sales %>% 
+  #filter(genre == "") %>% 
+  filter(year_of_release >= 2010) %>% 
+  filter(!developer %in% c("EA", "Ubisoft")) %>% 
+  group_by(developer, year_of_release) %>% 
+  summarise(num_games = n()) %>% 
+  ungroup() %>% 
+  ggplot() +
+  aes(x = year_of_release, y = num_games, colour = developer) +
+  geom_line() +
+  geom_point() +
+  scale_colour_manual(values = developer_colour_scheme) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ developer, ncol = 4)
+```
+
+``` {r}
+# game releases by developer since 2010
+
+# bar chart
+game_sales %>% 
+  filter(year_of_release >= 2000) %>% # have a year filter for this chart, slider range
+  filter(!developer %in% c("EA", "Ubisoft")) %>% 
+  group_by(developer, year_of_release) %>% 
+  summarise(num_games = n()) %>% 
+  ungroup() %>% 
+  ggplot() +
+  aes(x = year_of_release, y = num_games, fill = developer) +
+  geom_col() +
+  scale_fill_manual(values = developer_colour_scheme) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ developer, ncol = 4)
+```
+
+Have a year_slider for all the charts on this page - also include filter for genre and rating?
+
+Use the above plot as rate of publishing by developers
+
+Add: scatter sales and user_score / critic_score (input), colour (/label) = developer
+
+New tab? Add something about genre and sales/score - so publisher can pick which genre is successful, then which developers publish in
+
+For developer tab?
+
+Scatter year by user_score / critic_score, bubble size sales, hover-over game name < - for developer tab
