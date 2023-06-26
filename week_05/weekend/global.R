@@ -1,6 +1,7 @@
 library(shiny)
 library(tidyverse)
 library(bslib)
+library(plotly)
 
 # load game_sales data
 game_sales <- CodeClanData::game_sales

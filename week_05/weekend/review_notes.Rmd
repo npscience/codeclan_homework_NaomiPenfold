@@ -1,0 +1,24 @@
+---
+title: "Homework review"
+output: html_notebook
+---
+
+* For colour palette, instead of polychrome, try colourRampPalette for more colours
+* too many red ticks, could I reduce options?
+
+From Thijmen's app:
+
+* Plotly is nice for interactive labels
+* selectInput dropdown lists - you can type a text string to filter the options available
+
+From Weezay's app:
+
+* the shiny dashboard package has info boxes that return values from data as an output
+
+Justyna Q:
+
+* to get a plot that always shows "total sales over time" but you can select additional lines to show sales by an input (e.g. developer), try plotly:
+  * with logic (e.g. if nintendo, p + nintendo),
+  * or wrap plot in ggplotly(plot) and clicking on legend items turns things on/off
+  
+We won't cover plotly in course, so for more info, see https://plotly.com/r/.
