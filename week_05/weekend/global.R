@@ -47,9 +47,9 @@ theme_simplex <- function() {
       # modify texts
       plot.title = element_text(colour = "firebrick3", face = "bold", family = "Arial", size = 20),
       legend.title = element_text(family = "Arial", size = 16),
-      legend.text = element_text(family = "Arial", size = 11),
+      legend.text = element_text(family = "Arial", size = 12),
       axis.title = element_text(face = "bold", family = "Arial", size = 16),
-      axis.text = element_text(family = "Arial", size = 11),
+      axis.text = element_text(family = "Arial", size = 14),
       strip.text.x = element_text(size = 12, face = "bold")
     )
 }

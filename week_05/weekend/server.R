@@ -81,7 +81,7 @@ server <- function(input, output, session) {
       #geom_text(aes(label = genre), vjust = 0.3, hjust = -0.2, size = 2, show.legend = FALSE) +
       scale_colour_manual(values = genre_colour_scheme) +
       labs(x = "\nAverage critic score", y = "Average user score\n", colour = "Genre", 
-           legend = "Average sales", title = "Average performance by genre") +
+           size = "Average sales", title = "Average performance by genre") +
       theme_simplex() +
       theme(legend.position = "left")
   })
@@ -102,5 +102,4 @@ server <- function(input, output, session) {
       select(name,genre,platform,developer,year_of_release,sales,critic_score,user_score) %>% 
       arrange(name)
   })
-  
 }
