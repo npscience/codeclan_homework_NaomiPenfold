@@ -1,96 +1,96 @@
 ui <- fluidPage(
-  #theme = bs_theme(bootswatch = "cyborg"),
+  theme = bs_theme(bootswatch = "simplex"),
   
-  titlePanel(tags$h1("Videogame market landscape by game developer(s)")),
+  # ABOVE TABS ----
+  titlePanel(tags$h3("Videogame industry landscape")),
   
+  # select developer(s) and genre(s)
   fluidRow(
-    column(width = 4,
-           # select year range
-           sliderInput(inputId = "year_range",
-                       label = "Which year?",
-                       min = min(game_sales_mid_devs$year_of_release),
-                       max = max(game_sales_mid_devs$year_of_release),
-                       value = c(2010,2016),
-                       step = 1,
-                       round = TRUE,
-                       sep = ""
-           )
-    ),
-    
-    column(width = 8,
-           # multi-select checkboxes for developers
+    column(width = 6,
+           # select developer(s)
            checkboxGroupInput(inputId = "multi_developer_input",
-                              label = "Which game developer(s)?",
+                              label = tags$b("Which game developer(s)?"),
                               choices = developers_list,
-                              # select all but the biggest producers
-                              # Ubisoft and EA
                               selected = developers_list,
-                              inline = TRUE
-           )
+                              inline = TRUE)
+    ),
+    column(width = 6,
+           # select genre(s)
+           checkboxGroupInput(inputId = "genre",
+                              label = tags$b("Which genre(s)?"),
+                              choices = genres_list,
+                              selected = genres_list,
+                              inline = TRUE)
     )
-    
   ),
   
-  actionButton(inputId = "update",
-               label = "Show / Update results"),
+  # select year range
+  fluidRow(column(width = 8,
+                  sliderInput(inputId = "year_range",
+                              label = tags$b("Which year?"),
+                              min = min(game_sales_mid_devs$year_of_release),
+                              max = max(game_sales_mid_devs$year_of_release),
+                              value = c(1996,2016),
+                              step = 1,
+                              ticks = FALSE,
+                              round = TRUE,
+                              sep = ""
+                  )
+  ),
+  
+  column(width = 4,
+         HTML("<br>"),
+         actionButton(inputId = "submit",
+                      label = "Submit choices"),
+  )
+  ),
   
   tabsetPanel(
     
-    tabPanel(tags$b("Games released"),
-             
-             plotOutput("num_games_released"),
-             
-    ),
-    
+    # Tab 1: Developer performance ----
     
     tabPanel(tags$b("Developer market performance"),
-             
+             HTML("<br>"),
              fluidRow(
                column(width = 6,
                       plotOutput("devs_years_sales")
                ),
-               
                column(width = 6,
                       plotOutput("user_v_critic_scores")
                )
-               
              )
-             
     ),
     
-    tabPanel("See the data",
-             
+    # Tab 2: genre performance ----
+    
+    tabPanel(tags$b("Game genre performance"),
+             HTML("<br>"),
              fluidRow(
-               column(width = 6,
-                      checkboxGroupInput(inputId = "genre",
-                                  label = "Genre",
-                                  choices = genres_list,
-                                  selected = genres_list,
-                                  inline = TRUE)
+               column(width = 4,
+                      plotOutput("num_games_released")
                ),
-               
-               column(width = 6,
-                      checkboxGroupInput(inputId = "platform",
-                                  label = "Platform:",
-                                  choices = platforms_list,
-                                  selected = platforms_list,
-                                  inline = TRUE)
+               column(width = 8,
+                      plotOutput("genre_performance")
                )
-             ),
-             
-             fluidRow(
-               actionButton(inputId = "reveal",
-                            label = "Reveal the games"),
-             ),
-             
-             fluidRow(
-               HTML("<br>"),
-               tags$i("The games:"),
-               HTML("<br><br>"),
-               
-               DT::dataTableOutput("multidev_games_table_output")
+             )
+    ),
+    
+    # Tab 3: see the data ----
+    tabPanel("Data for all games in this period",
+             sidebarLayout(
+               sidebarPanel(
+                 textInput(inputId = "game_text_search",
+                           label = "Search for game:",
+                           value = "",
+                           placeholder = "Try Mario or FIFA"),
+                 
+                 actionButton(inputId = "name_search",
+                              label = "Search")
+               ),
+               mainPanel(
+                 DT::dataTableOutput("games_table_output")
+               )
              )
     )
-    
   )
 )

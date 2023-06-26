@@ -142,7 +142,7 @@ game_sales %>%
 ```{r}
 # smallest developers
 game_sales %>% 
-  filter(year_of_release >= 2010) %>% 
+  #filter(year_of_release >= 2010) %>% 
   group_by(developer) %>% 
   summarise(num_games = n()) %>% 
   arrange(num_games)
@@ -210,6 +210,8 @@ Show: by developer (group)
 With filter for genre? rating?
 + slider input for year range
 
+### game releases by year
+
 Try a chart with x = year, y = total_sales, grouped by developer
 
 ```{r}
@@ -232,6 +234,7 @@ game_sales %>%
   facet_wrap(~ developer, ncol = 4)
 ```
 
+### theme text + black bg
 ``` {r}
 # game releases by developer since 2010
 
@@ -249,7 +252,7 @@ game_sales %>%
   labs(y = "Number of games released", x = "Year", fill = "Developer") +
   facet_wrap(~ developer, ncol = 4) +
   theme_minimal() +
-  theme(strip.text.x = element_text(size = 12))
+  theme(strip.text.x = element_text(size = 12, face = "bold"))
   # theme for cyborg
   theme(legend.position = "bottom", 
         plot.background = element_rect(fill = "black"),
@@ -257,9 +260,8 @@ game_sales %>%
         legend.title = element_text(colour = "white"),
         plot.title = element_text(colour = "white"),
         strip.text = element_text(colour = "white"),
-        axis.text = element_text(colour = "white"),
-        axis.title = element_text(colour = "white"))
-
+        axis.text = element_text(colour = "white", size = 12),
+        axis.title = element_text(colour = "white", size = 20)) +
 # to do: change year to datetime to stop it labelling x-axis with decimals
 # to do: make a theme to use with bs theme: cyborg
 ```
@@ -267,6 +269,8 @@ game_sales %>%
 Have a year_slider for all the charts on this page - also include filter for genre and rating?
 
 Use the above plot as rate of publishing by developers
+
+### scatter critic v user scores
 
 Add: scatter sales and user_score / critic_score (input), colour (/label) = developer
 
@@ -284,7 +288,8 @@ game_sales %>%
   aes(x = critic_score, y = user_score, colour = developer, label = name) +
   geom_point(show.legend = FALSE) +
   geom_text(vjust = 0.6, hjust = 1.2, size = 2) +
-  scale_colour_manual(values = developer_colour_scheme)
+  scale_colour_manual(values = developer_colour_scheme) +
+  theme_simplex()
 ```
 
 ```{r}
@@ -300,6 +305,8 @@ game_sales %>%
   theme(legend.position = "bottom")
 ```
 
+### sales by developer, total
+
 ```{r}
 # sales by developer
 game_sales %>% 
@@ -308,20 +315,25 @@ game_sales %>%
   aes(y = reorder(developer, -sales), x = sales, fill = developer) +
   geom_col(show.legend = FALSE) +
   scale_colour_manual(values = developer_colour_scheme) +
-  labs(x = "Sales", y = "Developer")
+  labs(x = "Sales", y = "Developer") +
+  theme_simplex()
 ```
 
+## Set up input lists
 
+### platforms
 
 ```{r}
 game_sales %>% 
   distinct(platform)
 ```
-### Set up input lists
+### years
 
 ```{r}
 year_list <- c(min(game_sales$year_of_release):max(game_sales$year_of_release))
 ```
+
+#### transform years to int
 
 Make year column to int not dbl:
 ```{r}
@@ -329,7 +341,7 @@ game_sales %>%
   mutate(year = as.integer(year_of_release), .before = year_of_release)
 ```
 
-# tab 1: table output for developers & years filter
+## tab 1: table output for developers & years filter
 
 to show game names, with developer name, and in order of year released
 
@@ -343,4 +355,110 @@ game_sales %>%
   filter(developer %in% c("Capcom", "EA", "Namco")) %>% 
   select(name,developer,year_of_release) %>% 
   arrange(desc(year_of_release), developer, name)
+```
+
+## total sales by developer
+
+```{r}
+game_sales %>% 
+  group_by(developer) %>% 
+  summarise(total_sales = sum(sales, na.rm = TRUE)) %>% 
+  arrange(desc(total_sales)) %>% 
+  filter(total_sales > 50)
+```
+#### filter by lowest sales devs
+
+total_sales < 30
+
+## sales by genre - stacked bar
+
+```{r}
+game_sales %>% 
+  group_by(genre, year_of_release) %>% 
+  summarise(num_games = n())
+```
+```{r}
+# set up colour schemes
+colours_n_dev <- Polychrome::createPalette(N = length(unique(developers_list)), seedcolors = c("#ff0000", "#00ff00","#0000ff"), target = c("normal", "protanope", "deuteranope", "tritanope"))
+colours_n_genre <- Polychrome::createPalette(N = length(unique(genres_list)), seedcolors = c("#ffff66", "#00cc99", "#6600ff"), target = c("normal", "protanope", "deuteranope", "tritanope"))
+# make colour scheme vectors
+developer_colour_scheme <- setNames(colours_n_dev, developers_list)
+genre_colour_scheme <- setNames(colours_n_genre, genres_list)
+```
+
+```{r}
+game_sales %>% 
+  group_by(genre, year_of_release) %>% 
+  summarise(num_games = n()) %>% 
+  ggplot() +
+    aes(x = year_of_release, y = num_games, fill = factor(genre)) +
+      geom_col(position = "stack") +
+      scale_fill_brewer(palette = "Set3") + 
+      #scale_fill_manual(values = genre_colour_scheme) +
+      labs(y = "Number of games released\n", x = "\nYear", fill = "Genre") +
+      theme(legend.position = "bottom") +
+  theme_simplex()
+```
+
+this is not that interesting, what about total sales by genre, versus average critic score, with bubble size = number of games
+
+
+```{r}
+genre_table <- game_sales %>%
+  group_by(genre) %>% 
+  summarise(count_by_genre = n(),
+            total_sales = sum(sales, na.rm=TRUE),
+            avg_critic = mean(critic_score, na.rm = TRUE),
+            avg_user = mean(user_score, na.rm = TRUE))
+```
+
+```{r}
+genre_table %>% 
+  ggplot() +
+  aes(x = total_sales, y = avg_critic) +
+  geom_point(aes(size = count_by_genre, colour = genre)) +
+  #geom_text(aes(label = genre), vjust = 0.3, hjust = -0.2, size = 2, show.legend = FALSE) +
+  scale_colour_brewer(palette = "Set3") +
+  labs(x = "Total sales (log10))", y = "Average critic score") +
+  theme(legend.position = "right") +
+  theme_simplex()
+  
+```
+
+# Search table by game name
+
+```{r}
+game_sales %>%
+  filter(str_detect(name,"Mario"))
+```
+
+# Custom ggplot theme for simplex
+
+``` {r}
+theme_simplex <- function() {
+  theme_minimal() +
+    theme(
+    # add border 1)
+    panel.border = element_rect(colour = "white", fill = NA),
+    
+    # color background 2)
+    panel.background = element_rect(fill = "white"),
+    
+    # modify grid 3)
+    panel.grid.major.x = element_line(colour = "grey80", linetype = 3, size = 0.5),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y =  element_line(colour = "grey80", linetype = 3, size = 0.5),
+    panel.grid.minor.y = element_blank(),
+    
+    # modify texts
+    plot.title = element_text(colour = "indianred", face = "bold", family = "Arial", size = 20),
+    legend.title = element_text(family = "Arial", size = 16),
+    legend.text = element_text(family = "Arial", size = 11),
+    axis.title = element_text(face = "bold", family = "Arial", size = 16),
+    axis.text = element_text(family = "Arial", size = 11),
+    strip.text.x = element_text(size = 12, face = "bold"),
+    #axis.ticks = element_line(colour = "steelblue")
+  )
+}
+
 ```
