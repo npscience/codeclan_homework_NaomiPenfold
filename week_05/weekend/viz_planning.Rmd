@@ -402,8 +402,9 @@ game_sales %>%
 
 this is not that interesting, what about total sales by genre, versus average critic score, with bubble size = number of games
 
-
+# genre scatter
 ```{r}
+#v1
 genre_table <- game_sales %>%
   group_by(genre) %>% 
   summarise(count_by_genre = n(),
@@ -425,12 +426,20 @@ genre_table %>%
   
 ```
 
+```{r}
+game_sales %>% 
+      group_by(genre) %>% 
+      summarise(across(.cols = c(sales, user_score, critic_score),
+                        .fns = ~ mean(.x, na.rm=TRUE))) 
+```
+
 # Search table by game name
 
 ```{r}
 game_sales %>%
   filter(str_detect(name,"Mario"))
 ```
+
 
 # Custom ggplot theme for simplex
 

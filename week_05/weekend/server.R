@@ -67,23 +67,21 @@ server <- function(input, output, session) {
   
   # make summary stats for genre
   # this is a more complex plot for looking at overall performance by genre
-  # it shows how the dominant genres sell more games overall
-  # and that overall high critic scores do not necessarily convert to sales
-  # note average user rating is unused
+  # when using averages of critic and user score and sales across the genre,
+  # there doesn't seem to be a pattern between reception and sales
+  # however - it would be useful to drill down into individual games
+  # (as done in developer tab)
   output$genre_performance <- renderPlot({
     games_data_input() %>% 
       group_by(genre) %>% 
-      summarise(Count = n(),
-                total_sales = sum(sales, na.rm=TRUE),
-                #avg_user = mean(user_score, na.rm = TRUE)
-                avg_critic = mean(critic_score, na.rm = TRUE)) %>% 
+      summarise(across(.cols = c(sales, user_score, critic_score),
+                        .fns = ~ mean(.x, na.rm=TRUE))) %>% 
       ggplot() +
-      aes(x = total_sales, y = avg_critic) +
-      geom_point(aes(size = Count, colour = genre)) +
+      geom_point(aes(x = critic_score, y = user_score, size = sales, colour = genre)) +
       #geom_text(aes(label = genre), vjust = 0.3, hjust = -0.2, size = 2, show.legend = FALSE) +
       scale_colour_manual(values = genre_colour_scheme) +
-      labs(x = "\nTotal sales", y = "Average critic score\n", colour = "Genre",
-           guide_geom = "Number of games", title = "Overall performance by genre") +
+      labs(x = "\nAverage critic score", y = "Average user score\n", colour = "Genre", 
+           legend = "Average sales", title = "Average performance by genre") +
       theme_simplex() +
       theme(legend.position = "left")
   })

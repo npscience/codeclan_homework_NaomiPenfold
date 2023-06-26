@@ -28,8 +28,8 @@ ui <- fluidPage(
   fluidRow(column(width = 8,
                   sliderInput(inputId = "year_range",
                               label = tags$b("Which year?"),
-                              min = min(game_sales_mid_devs$year_of_release),
-                              max = max(game_sales_mid_devs$year_of_release),
+                              min = min(game_sales_filtered$year_of_release),
+                              max = max(game_sales_filtered$year_of_release),
                               value = c(1996,2016),
                               step = 1,
                               ticks = FALSE,
@@ -49,7 +49,7 @@ ui <- fluidPage(
     
     # Tab 1: Developer performance ----
     
-    tabPanel(tags$b("Developer market performance"),
+    tabPanel(tags$b("Developer performance"),
              HTML("<br>"),
              fluidRow(
                column(width = 6,
@@ -63,7 +63,7 @@ ui <- fluidPage(
     
     # Tab 2: genre performance ----
     
-    tabPanel(tags$b("Game genre performance"),
+    tabPanel(tags$b("Genre performance"),
              HTML("<br>"),
              fluidRow(
                column(width = 4,
