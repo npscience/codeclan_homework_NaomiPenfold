@@ -1,0 +1,269 @@
+---
+title: "Probability (wk6d1) homework"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(gtools)
+library(janitor)
+```
+# Q1.1.
+
+_Task: Some time after the disaster a journalist wrote that crew members were more likely to have survived the sinking than passengers. This was disputed by a descendant of one of the surviving crew members, who suggested that the opposite was true, i.e. passengers were more likely to have survived than crew. Calculate the conditional probabilities prob(survived∣crew) and prob(survived∣passenger) to settle this dispute._
+
+```{r}
+titanic <- read_csv("data/titanic.csv")
+```
+
+```{r}
+glimpse(titanic)
+```
+
+
+```{r}
+unique(titanic$class)
+```
+
+```{r}
+unique(titanic$survived)
+```
+
+Class: indicates passenger v staff, recode this.
+Survived: "yes" v "no".
+
+```{r}
+titanic_type <- titanic %>% 
+  mutate(type = if_else(class %in% c("1st", "2nd", "3rd"), 
+                        "passenger", "crew"), .before = class)
+```
+
+```{r}
+titanic_type %>% 
+  group_by(survived, type) %>% 
+  summarise(count = n())
+```
+
+```{r}
+cont_table <- titanic_type %>% 
+  tabyl(survived, type)
+
+cont_table_n <- cont_table %>% 
+  adorn_totals(where = c("row", "col"))
+
+cont_table_p <- cont_table %>% 
+  adorn_totals(where = c("row", "col")) %>% 
+  adorn_percentages(denominator = "all")
+
+cont_table_n 
+cont_table_p
+```
+Check if dependent?
+
+Does P(A and B) = P(A) * P(B)?
+
+```{r}
+p_survived <- 0.3221568
+p_crew <- 0.40326235
+p_survived_crew <- 0.09560489
+
+p_survived_crew == p_survived * p_crew
+```
+
+No, so *dependent*, so use:
+
+P(A|B) = P(A and B) / P(B)
+
+to calculate: prob(survived | crew) vs prob(survived | passenger)
+
+```{r}
+# p survived given crew member
+p_s_giv_c <- p_survived_crew / p_crew
+p_s_giv_c
+
+# p survived given passenger
+p_passenger <- 0.5967377
+p_survived_passenger <- 0.2265519
+
+p_s_giv_p <- p_survived_passenger / p_passenger
+p_s_giv_p
+
+# test: passengers were more likely to have survived than crew
+p_s_giv_p > p_s_giv_c
+
+```
+
+Yes, the surviving crew member was correct and the journalist was incorrect: passengers were more likely to survive than crew members.
+
+# Section 1.2 
+
+## Q1
+
+P(n <5 if roll 6-sided die once) = P(1 or 2 or 3 or 4) =
+
+```{r}
+4/6
+```
+
+## Q2
+
+Toss three dice. How many outcomes in sample space of experiment?
+
+6 * 6 * 6.
+```{r}
+6^3
+```
+
+## Q3
+
+Roll 4 dice.
+
+### (i)
+how many outcomes are in the event where the total of the four dice equals 5, 6 or 7)?
+
+```{r}
+# using the prob functions from Kerns G (2018)
+source("prob.R")
+```
+
+```{r}
+roll_4t <- rolldie(4, 6) %>%
+  # add total column 
+  rowwise() %>% 
+  mutate(total = sum(X1,X2,X3,X4), .after = X4)
+
+nrow(roll_4t) # 1296 possible outcomes
+
+# nrow for total 5, 6 or 7
+roll_4t %>% 
+  filter(total %in% c(5,6,7)) %>% 
+  nrow() # 34 outcomes
+
+```
+
+Answer: 34 outcomes (out of 1296 possible)
+
+### (ii)
+
+what is the probability of this event?
+
+```{r}
+roll_4t %>% 
+  filter(total %in% c(5,6,7)) %>%
+  summarise(p = n()/nrow(roll_4t)) %>% 
+  sum()
+
+34/1296
+```
+
+#### review Q: 
+why did I need to sum up the 34 individual probabilities?
+
+### (iii)
+
+what assumptions do we apply in answering part ii?
+
+We assume that the dice is fair and balanced, i.e. it is equally likely that we will land on any of the 6 sides each roll, independent of any other rolls.
+
+## Q4
+
+_Five chairs are placed in a row in a room, along with five people of differing height. The people sit down randomly on the chairs. What is the probability that they sit in order of decreasing height, left to right?_
+
+Let:
+
+* P1 > P2 > P3 > P4 > P5 in height
+* Chairs are C1-5 from left to right
+
+Sitting C1 = P1, C2 = P2, etc is 1 outcome.
+
+What is the sample space (total number of possible outcomes)?
+
+Order matters (person and chair), so this is a permutation.
+
+    P = N! / (N - r)!
+
+5.4.3.2.1 / 0! (=1)
+
+```{r}
+p <- 1/(5*4*3*2*1)
+p
+```
+
+or P = 1/120.
+
+Alternatively:
+```{r}
+# 1/total number of permutations
+1/nrow(permutations(5, 5, repeats.allowed=FALSE))
+```
+
+
+## Q5
+
+I roll six dice:
+
+### (i)
+
+what is the probability I see the numbers 6, 5, 4, 3, 2 and 1 in order on the dice, left to right?
+
+P(6 on leftmost dice) = 1/6
+P(5 on next dice) = 1/6
+etc
+
+these are independent events, so (1/6)^6
+
+```{r}
+(1/6)^6
+```
+
+or 1/46,656
+```{r}
+6^6
+```
+
+### (ii)
+
+what is the probability I see one each of the numbers 6, 5, 4, 3, 2 and 1 on the dice regardless of order?
+
+the above, multiplied by the number of different ways of getting exactly 1 of each:
+
+6.5.4.3.2.1 (or 6!)
+
+```{r}
+factorial(6)/(6^6)
+```
+
+or 720/46,656 or 5/324
+
+Using `isin()` function:
+```{r}
+roll_6_6 <- rolldie(6, 6)
+
+roll_6_6 %>% 
+  isin(c(1,2,3,4,5,6), ordered = FALSE) %>% 
+  summary()
+```
+
+```{r}
+720 / (45936+720)
+```
+
+Same answer.
+
+## Q6
+
+_Task: If I draw a single card from a 52-card deck, and it is black, what is the probability that its suit is spades?_
+
+Definitely dependent events.
+
+P(spade | black) = P(spade and black) / P(black)
+
+```{r}
+p_black <- 0.5
+p_spade_and_black <- 0.25 # same as p_spade, has to be black
+
+p_spade_giv_black <- 0.25/0.5
+p_spade_giv_black
+```
+
+This makes sense, because if given a black card, there is 50% chance it will be a spade or clubs (no other options, both equally likely if this is first card drawn from pack).
