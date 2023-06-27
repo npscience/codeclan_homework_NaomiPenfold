@@ -220,4 +220,4 @@ qqplot(Samsung_rating_scaled$rating_scaled, dnorm(x = 100, mean = 0, sd = 1))
 
 This indicates the extreme rating values (e.g. rating 1 and 5) give a long tail, and lots of the rest of the data is concentrated in the middle.
 
-
+_Cannot work out how to use qqnorm()_
