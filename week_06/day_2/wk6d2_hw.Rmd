@@ -1,0 +1,223 @@
+---
+title: "wk6d2 homework"
+output: html_notebook
+---
+
+# Q1
+
+```{r}
+library(tidyverse)
+library(skimr)
+```
+
+
+```{r}
+phone_reviews <- read_csv("data/20190928-items.csv") %>% 
+  janitor::clean_names()
+```
+```{r}
+skim(phone_reviews)
+```
+```{r}
+head(phone_reviews)
+```
+
+
+Some visualizations:
+
+## Rating
+
+```{r}
+phone_reviews %>% 
+  ggplot() +
+  geom_histogram(aes(x = rating), colour = "white", bins = 50)
+
+phone_reviews %>% 
+  ggplot() +
+  geom_bar(aes(x = rating))
+```
+Discrete ordinal or continuous? Ratings are from 1 to 5 (from skim) in increments of 0.1 so maybe discrete numeric. Looks negatively skewed.
+
+## Total reviews
+
+Skim: min is 1, max is 984. The mean and median values and histogram in skim indicate positively skewed data.
+
+```{r}
+phone_reviews %>% 
+  ggplot() +
+  geom_histogram(aes(x = total_reviews), colour = "white", bins = 50)
+```
+
+Looks very positively skewed.
+
+```{r}
+phone_reviews %>% 
+  summarise(skewness = e1071::skewness(total_reviews, type = 1))
+```
+Skewness coefficient shows it is highly positively skewed.
+
+## Prices
+
+Entered as <chr> data, min 6, max 19, lots of NAs. Inspecting the data, these are entered as $ values, and the min/max here does not indicate min and max prices. Would need to clean data to inspect.
+
+# Q2 
+
+Discrete values
+```{r}
+phone_reviews %>% 
+  ggplot() +
+  geom_bar(aes(y=brand))
+```
+
+**Samsung** is the brand with the most entries in this data.
+
+Confirming this:
+```{r}
+phone_reviews %>% 
+  group_by(brand) %>% 
+  summarise(count = n()) %>% 
+  slice_max(order_by = count)
+```
+
+# Q3 
+
+For your top brand, plot the distribution of phone ratings as a probability density, overlaying a fitted normal distribution. Do you think the normal distribution provides a good model of these ratings?
+
+* filter for brand == samsung
+* find mean and sd
+* plot ratings as pdf: use geom_histogram with y = after_stat(density)
+* add to plot using stat_function dnorm with Samsung rating mean and sd
+* check: is 68% data within 1 sd of mean? is 95% within 2 sd? is 99.7% within 3 sd?
+
+```{r}
+# find mean and sd for Samsung ratings
+Samsung_rating_stats <- phone_reviews %>% 
+  filter(brand == "Samsung") %>% 
+  summarise(mean = mean(rating),
+            sd = sd(rating))
+
+# plot pdf
+phone_reviews %>% 
+  filter(brand == "Samsung") %>% 
+  ggplot() +
+  geom_histogram(aes(x = rating, y = after_stat(density)),
+                 colour = "white", fill = "steelblue", bins = 40) +
+  stat_function(
+    fun = dnorm,
+    args = list(
+      mean = Samsung_rating_stats$mean,
+      sd = Samsung_rating_stats$sd
+    ),
+    colour = "orange", size = 2
+  ) +
+  theme(panel.background = element_rect(fill = "white"))
+  
+```
+
+The normal distribution line looks kind of ok, although there are plenty of bars above and below the curve, and the extreme values (1 and 5) aren't really captured.
+
+# Q4
+
+Let's see if the data fits the three-sigma rule:
+
+* check: is 68% data within 1 sd of mean? is 95% within 2 sd? is 99.7% within 3 sd?
+
+```{r}
+# set up values to check percentages
+max_1sd <- Samsung_rating_stats$mean + Samsung_rating_stats$sd
+min_1sd <- Samsung_rating_stats$mean - Samsung_rating_stats$sd
+
+max_2sd <- Samsung_rating_stats$mean + (2*Samsung_rating_stats$sd)
+min_2sd <- Samsung_rating_stats$mean - (2*Samsung_rating_stats$sd)
+
+max_3sd <- Samsung_rating_stats$mean + (3*Samsung_rating_stats$sd)
+min_3sd <- Samsung_rating_stats$mean - (3*Samsung_rating_stats$sd)
+
+Samsung_rating_stats$mean
+Samsung_rating_stats$sd
+max_1sd
+min_1sd
+max_2sd
+min_2sd
+max_3sd
+min_3sd
+```
+```{r}
+# check proportion of data within these ranges
+
+# within 1 sd
+prop_1sd <- phone_reviews %>% 
+  filter(brand == "Samsung") %>% 
+  filter(rating >= min_1sd & rating <= max_1sd) %>% # 315 rows
+  summarise(prop = n() / nrow(phone_reviews %>% 
+                                filter(brand == "Samsung"))) %>% # total 397 rows
+  pull(prop)
+
+# within 2 sd
+prop_2sd <- phone_reviews %>% 
+  filter(brand == "Samsung") %>% 
+  filter(rating >= min_2sd & rating <= max_2sd) %>% # 365 rows
+  summarise(prop = n() / nrow(phone_reviews %>% 
+                                filter(brand == "Samsung"))) %>% # total 397 rows
+  pull(prop)
+
+# within 3 sd
+prop_3sd <- phone_reviews %>% 
+  filter(brand == "Samsung") %>% 
+  filter(rating >= min_3sd & rating <= max_3sd) %>% # 389 rows
+  summarise(prop = n() / nrow(phone_reviews %>% 
+                                filter(brand == "Samsung"))) %>% # total 397 rows
+  pull(prop)
+
+prop_1sd
+prop_2sd 
+prop_3sd 
+```
+
+No way Jose is this normal. For normal, we would expect:
+
+* ~67% of our data to be within 1sd, but here it is 79%
+* ~95% to be within 2sd, but here it is 92%
+* ~99.7% to be within 3sd, but here it is 98% of our data.
+
+So our data is spread less broadly than a normal distribution. We might want to transform it in order to make it "standard normal", i.e. scaling N[3.57,0.68] to N[0,1] using:
+
+(x-3.57)/0.68
+
+Let's try this:
+
+```{r}
+Samsung_rating_scaled <- phone_reviews %>% 
+  filter(brand == "Samsung") %>% 
+  mutate(rating_scaled = ((rating - Samsung_rating_stats$mean)/Samsung_rating_stats$sd))
+
+Samsung_rating_scaled %>% 
+  ggplot() +
+  geom_histogram(aes(x = rating_scaled, y = after_stat(density)),
+                 colour = "white", fill = "steelblue", bins = 40) +
+  geom_smooth(aes(x = rating_scaled, y = after_stat(density)), stat = "density", 
+              colour = "orange", size = 2) +
+  theme(panel.background = element_rect(fill = "white"))
+```
+
+The tinsel on the tree looks like it is more normal after scaling.
+
+# Extension
+
+```{r}
+Samsung_data <- phone_reviews %>% 
+  filter(brand == "Samsung")
+
+# cannot pipe into it so first assign the filter data
+# first run qqnorm
+qqnorm(Samsung_rating_scaled$rating_scaled)
+# then run qqline to get theoretical
+qqline(dnorm(100,0,1))
+
+qqplot(Samsung_rating_scaled$rating_scaled, dnorm(x = 100, mean = 0, sd = 1))
+
+```
+
+This indicates the extreme rating values (e.g. rating 1 and 5) give a long tail, and lots of the rest of the data is concentrated in the middle.
+
+
