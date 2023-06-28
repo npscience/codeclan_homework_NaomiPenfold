@@ -212,12 +212,34 @@ Samsung_data <- phone_reviews %>%
 # first run qqnorm
 qqnorm(Samsung_rating_scaled$rating_scaled)
 # then run qqline to get theoretical
-qqline(dnorm(100,0,1))
-
-qqplot(Samsung_rating_scaled$rating_scaled, dnorm(x = 100, mean = 0, sd = 1))
-
+qqline(Samsung_rating_scaled$rating_scaled)
 ```
 
 This indicates the extreme rating values (e.g. rating 1 and 5) give a long tail, and lots of the rest of the data is concentrated in the middle.
 
 _Cannot work out how to use qqnorm()_
+
+Use rnorm to generate random numbers that are normally distributed
+
+```{r}
+qqnorm(rnorm(1000,0,1))
+qqline(rnorm(1000,0,1))
+```
+
+Can also use this to see what samsung data should be if normally distributed
+
+```{r}
+# scaled data
+qqnorm(Samsung_rating_scaled$rating_scaled)
+qqline(rnorm(1000, mean(Samsung_rating_scaled$rating_scaled), sd(Samsung_rating_scaled$rating_scaled)))
+```
+
+```{r}
+# not scaled data
+qqnorm(Samsung_rating_scaled$rating)
+qqline(rnorm(1000, mean(Samsung_rating_scaled$rating), sd(Samsung_rating_scaled$rating)))
+```
+
+This plot shows that our data looks fairly normal in the middle of the bell curve but the tails do not fit this, the extreme values of rating 1 and 5 do not fit with normal distribution.
+
+
