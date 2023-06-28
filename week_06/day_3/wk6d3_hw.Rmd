@@ -1,0 +1,286 @@
+---
+title: "Homework - wk6d3"
+output: html_notebook
+---
+
+# MVP
+
+## Task 1
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(infer)
+```
+
+```{r}
+house_data <- read_csv("data/ames.csv") %>% 
+  clean_names()
+```
+```{r}
+glimpse(house_data)
+```
+
+
+```{r}
+skimr::skim(house_data)
+```
+
+## Task 2
+
+Investigate the distribution of lot_area. Is the distribution roughly normal? If not, what problems do you find?
+
+```{r}
+house_data %>% 
+  ggplot(aes(x = lot_area)) +
+  geom_histogram(bins = 100)
+```
+
+```{r}
+e1071::skewness(house_data$lot_area, type = 1)
+```
+
+The `house_lot` data is very highly positively skewed.
+
+There looks to be a really long tail to the right, if these values were removed, maybe the bulk of the data would look better.
+
+```{r}
+house_data %>% 
+  select(lot_area) %>% 
+  arrange(desc(lot_area))
+```
+
+```{r}
+house_data %>% 
+  ggplot(aes(x = lot_area)) +
+  geom_boxplot()
+```
+
+
+## Tasks 3 + 4
+
+```{r}
+# bootstrap it
+bootstrapped_house_lot <- house_data %>% 
+  specify(response = lot_area) %>% 
+  generate(reps = 5000, type = "bootstrap") %>% 
+  calculate(stat = "mean")
+
+# 95ci
+lot_area_95ci <- bootstrapped_house_lot %>% 
+  get_ci(level = 0.95, type = "percentile")
+
+# visualise
+bootstrapped_house_lot %>% 
+  visualise(bins = 50) +
+  shade_ci(endpoints = lot_area_95ci)
+```
+
+## Task 5
+
+```{r}
+# 99 ci
+lot_area_99ci <- bootstrapped_house_lot %>% 
+  get_ci(level = 0.99, type = "percentile")
+```
+
+```{r}
+bind_rows(lot_area_95ci, lot_area_99ci)
+```
+
+The 99% CI is broader, because it contains more of the data.
+
+## Task 6
+
+```{r}
+lot_area_99ci %>% 
+  mutate(mean_boot = mean(bootstrapped_house_lot$stat, na.rm = TRUE), .before = lower_ci) %>% 
+  mutate(mean_orig = mean(house_data$lot_area, na.rm = TRUE), .before = mean_boot)
+```
+So we can say that we estimate the mean house lot area to be 10,148 square metres with a 99% CI of [9,801, 10,563] square metres. _(If units = m2!!)_
+
+# Extension
+
+Calculate a point estimate and 95% CI for the proportion of houses in the data built before 1920. Does the number of reps you use matter? [Investigate reps from 200 up to 50000, memory of your laptop permitting].
+
+Try reps: 200, 1000, 10000, 40000 (if laptop can do it)
+
+proportion of houses in the data built before 1920 -- var: year_built (<dbl>), condition: < 1920
+
+```{r}
+# proportion built before 1920 in this sample
+prop_1920_original <- house_data %>% 
+  summarise(prop = sum(year_built < 1920)/n()) %>% 
+  pull()
+
+prop_1920_original
+```
+
+So from our sample, 6% houses were built before 1920.
+
+Let's find our CI for this using bootstrapping:
+
+```{r}
+## successful attempt
+resample_200reps <- house_data %>% 
+  mutate(built_before_1920 = if_else(
+    year_built < 1920, "Yes", "No"
+  ), .before = order) %>% 
+  specify(response = built_before_1920, success = "Yes") %>% 
+  generate(reps = 200, type = "bootstrap") %>% 
+  calculate(stat = "prop")
+```
+
+``` {r}
+## failed attempt
+resample_200_x <- house_data %>% 
+  specify(response = year_built, success = toString(rlang::is_true(.$year_built<1920))) %>% 
+  generate(reps = 200, type = "bootstrap") %>% 
+  calculate(stat = "prop")
+```
+"Error: `success` should only be specified if the response is a categorical variable."
+
+
+```{r}
+ci_200reps <- resample_200reps %>% 
+  get_ci(level = 0.95, type = "percentile")
+
+prop_200reps <- resample_200reps %>% 
+  summarise(prop = mean(stat)) %>% 
+  pull()
+
+ci_200reps
+prop_200reps
+prop_1920_original
+```
+
+So, after bootstrapping with 200 reps, we can estimate the proportion of houses built before 1920 is 6.0% with a 95% CI of [5.2, 6.8]%.
+
+## Try increasing reps in the bootstrapping
+
+What if we increase the reps in the bootstrapping?
+
+We cannot increase sample size, since this is always equivalent to our original sample size (~3000 rows of data). But we can increase the number of resamples we take. 
+
+Thinking ahead: as reps go up, the CI gets tighter and the mean stat from the resampled data gets closer to the original stat - but I expect there to be a point at which adding reps makes very little difference, particularly as we approach the sample stat (here, proportion) and the limit of R's decimal calculations. Or maybe the CI keeps getting tighter and tighter and it's like we're overfitting our data, relying too heavily on the sample data.
+
+### Function to generate stats table
+
+Write a function:
+```{r}
+get_bootstrap_stats <- function(start_reps, increment, steps) {
+  
+  results <- tibble("name" = "source_df", "lower_ci" = NA_integer_, "upper_ci" = NA_integer_, "prop" = prop_1920_original)
+  
+  for (i in 0:steps) {
+  
+  reps <- start_reps + increment*i
+  
+  df <- house_data %>% 
+  mutate(built_before_1920 = if_else(
+    year_built < 1920, "Yes", "No"
+  ), .before = order) %>% 
+  specify(response = built_before_1920, success = "Yes") %>% 
+  generate(reps = reps, type = "bootstrap") %>% 
+  calculate(stat = "prop")
+  
+  ci_95 <- df %>% 
+  get_ci(level = 0.95, type = "percentile")
+
+  prop <- df %>% 
+  summarise(prop = mean(stat)) %>% 
+  pull()
+  
+  results_reps <- tibble("name" = as.character(reps), "lower_ci" = ci_95$lower_ci, "upper_ci" = ci_95$upper_ci, "prop" = prop)
+  
+  results <- bind_rows(results, results_reps)
+  }
+
+  return(results)
+
+}
+```
+
+#### Results table: 500, 3000, 5500, ..., 13000
+
+```{r}
+# !! depending on the bootstrapping reps, this can take a little time
+get_bootstrap_stats(500, 2500, 5)
+```
+
+### Function to visualise dist & shade CIs
+
+```{r}
+plot_bootstrap <- function(reps) {
+
+  df <- house_data %>% 
+  mutate(built_before_1920 = if_else(
+    year_built < 1920, "Yes", "No"
+  ), .before = order) %>% 
+  specify(response = built_before_1920, success = "Yes") %>% 
+  generate(reps = reps, type = "bootstrap") %>% 
+  calculate(stat = "prop")
+  
+  ci_95 <- df %>% 
+  get_ci(level = 0.95, type = "percentile")
+  
+  # prop <- df %>% 
+  # summarise(prop = mean(stat)) %>% 
+  # pull()
+
+  plot <- df %>% 
+    visualise(bins = 50) +
+    shade_ci(endpoints = ci_95) #+
+    # labs(subtitle = str_c("reps: ",reps,
+    #                       "; 95% CI: [",round(ci_95[1],5),",",round(ci_95[2],5),
+    #                       "]; Prop:",round(prop,5)))
+    # 
+  print(plot)
+}
+```
+
+#### Results: 100, 500, 1000, 5000, 25000
+```{r}
+plot_bootstrap(100)
+plot_bootstrap(500)
+plot_bootstrap(1000)
+plot_bootstrap(5000)
+plot_bootstrap(25000)
+```
+
+## Interpretation
+
+The CIs do get narrower, but at some point it is limited returns.
+
+------
+
+### Old, but don't overwrite
+
+```{r}
+bootstrap_my_bb1920(1000)
+```
+
+```{r}
+bootstrap_my_bb1920(5000)
+```
+
+```{r eval = FALSE}
+bootstrap_my_bb1920(50000)
+```
+
+```{r}
+bootstrap_my_bb1920(200)
+```
+```{r}
+bootstrap_my_bb1920(10000)
+```
+
+```{r}
+bootstrap_my_bb1920(20000)
+```
+
+```{r}
+table <- bind_rows(bootstrap_my_bb1920(10)$results, bootstrap_my_bb1920(100)$results)
+table
+```
+
