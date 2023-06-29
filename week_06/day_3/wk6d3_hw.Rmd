@@ -201,9 +201,69 @@ get_bootstrap_stats <- function(start_reps, increment, steps) {
 }
 ```
 
+```{r}
+get_bootstrap_stats_multiply <- function(start_reps, multiplier, steps) {
+  
+  results <- tibble("name" = "source_df", "lower_ci" = NA_integer_, "upper_ci" = NA_integer_, "prop" = prop_1920_original)
+  
+  for (i in 0:steps) {
+  
+  reps <- start_reps * (i * multiplier)
+  
+  df <- house_data %>% 
+  mutate(built_before_1920 = if_else(
+    year_built < 1920, "Yes", "No"
+  ), .before = order) %>% 
+  specify(response = built_before_1920, success = "Yes") %>% 
+  generate(reps = reps, type = "bootstrap") %>% 
+  calculate(stat = "prop")
+  
+  ci_95 <- df %>% 
+  get_ci(level = 0.95, type = "percentile")
+
+  prop <- df %>% 
+  summarise(prop = mean(stat)) %>% 
+  pull()
+  
+  results_reps <- tibble("name" = as.character(reps), "lower_ci" = ci_95$lower_ci, "upper_ci" = ci_95$upper_ci, "prop" = prop)
+  
+  results <- bind_rows(results, results_reps)
+  }
+
+  return(results)
+
+}
+```
+
+#### Results table:
+
+```{r}
+# this takes a minute!!
+experiment_17s <- get_bootstrap_stats(1000, 3000, 15)
+```
+
+```{r}
+# plot CI bounds
+experiment_17s %>% 
+  mutate(reps = if_else(name == "source_df", 1, as.numeric(name))) %>% 
+  ggplot() +
+  geom_line(aes(x = reps, y = lower_ci), colour = "springgreen") +
+  geom_line(aes(x = reps, y = upper_ci), colour = "steelblue") +
+  labs(x = "Number of bootstrapped resamples", y = "CI bound")
+
+# plot mean props
+experiment_17s %>% 
+  mutate(reps = if_else(name == "source_df", 1, as.numeric(name))) %>% 
+  ggplot() +
+  geom_line(aes(x = reps, y = prop), colour = "darkorange")
+```
+
+At lower number of resamples, the CIs vary; once 25000 and above reps, they have stabilised <- the sensitivity of our CIs to bootstrapping resamples.
+
 #### Results table: 500, 3000, 5500, ..., 13000
 
 ```{r}
+# OLD, don't re-run
 # !! depending on the bootstrapping reps, this can take a little time
 get_bootstrap_stats(500, 2500, 5)
 ```
