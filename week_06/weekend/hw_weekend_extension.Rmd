@@ -1,0 +1,21 @@
+---
+title: "Mad extension?!"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+transactions <- read_csv("data/online_retail_subset.csv")
+```
+
+```{r}
+head(transactions)
+```
+
+Assume the same invoice number == the same basket or transaction.
+
+    item A: ‘HEART OF WICKER SMALL’ (StockCode 22469)
+    item B: ‘LARGE CAKE TOWEL PINK SPOTS’ (StockCode 21110)
+
+
+
