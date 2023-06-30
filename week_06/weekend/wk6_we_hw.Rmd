@@ -1,0 +1,325 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# MVP
+
+```{r}
+library(tidyverse)
+library(infer)
+data(msleep)
+```
+
+## Section 1.1
+
+### Q1
+
+_Explore data_
+
+```{r}
+glimpse(msleep)
+```
+
+```{r}
+skimr::skim(msleep)
+```
+
+```{r}
+head(msleep, 10)
+```
+```{r}
+msleep %>% 
+  arrange(desc(sleep_cycle))
+```
+
+So here I think we have different mammals (common and scientific names), with the number of hours spent in sleep (total), in REM sleep, awake, and also the number of hours in one sleep cycle (i.e. 1.5 hours for a human). Also brain wieght, body weight, diet (ominvore, herbivore, carnivore).
+
+### Q2
+
+_Jabberwockies sleep for around 7 hours a night, on average. Perform an appropriate statistical test to determine whether the mean sleep_total in the sampled population of animal types differs from the typical value for jabberwockies._
+
+H0: the mean sleep_total for Jabberwockies is not different from the mean sleep_total in this mammal data.
+H1: the mean sleep_total of Jabberwockies is different from the mammals in our data.
+
+alpha = 0.05 - i'm ok with a 5% false positive rate
+
+Let's assume they are no different, so my H0 is that the mean of our data is 7.
+
+```{r}
+# calculate the mean sleep_total
+mean_msleep_total <- msleep %>% 
+  specify(response = sleep_total) %>% 
+  calculate(stat = "mean") %>% 
+  pull()
+mean_msleep_total
+```
+
+```{r}
+msleep %>% 
+  ggplot(aes(x = sleep_total)) +
+  geom_boxplot()
+
+msleep %>% 
+  ggplot(aes(x = sleep_total)) +
+  geom_histogram(bins = 30, colour = "white")
+```
+
+Hmm doesn't look very normal, I'm not sure we should be testing in this way.... but let's do it anyway.
+
+```{r}
+null_dist <- msleep %>% 
+  specify(response = sleep_total) %>% 
+  hypothesise(null = "point", mu = 7) %>% 
+  generate(reps = 10000, type = "bootstrap") %>% 
+  calculate(stat = "mean")
+
+null_dist %>% 
+  visualise(bins = 30) + 
+  shade_p_value(obs_stat = mean_msleep_total, direction = "both")
+```
+
+This suggests sig difference...
+
+```{r}
+null_dist %>% 
+  get_p_value(obs_stat = mean_msleep_total, direction = "both")
+```
+
+With p<0.00001 (And our set alpha p<0.05) I can reject the null hypothesis, and be pretty confident there is a significant difference between the mean total number of hours a Jabberwocky sleep (7) and the mean of totla sleep from our collection of mammals (10.4 hours). Jabberwockies sleep less than the average mammal.
+
+However, the sleep_total data for our mammals didn't look very normally distributed, so I am not confident this is a valid conclusion to make - there are several mammals sleeping much less / much more than the mean value, it's quite broadly spread.
+
+_Maybe it's worth adjusting our data to fit normality better... but it would give us the same answer from this test?_
+
+### Q3
+
+_Perform an appropriate statistical test to determine whether omnivores sleep for significantly longer than herbivores, on average._
+
+variable of interest: sleep_total
+filter for: vore %in% c(omin, herbi)
+grouped by: vore (diet type)
+
+Before looking at data:
+
+H0 is that omnis sleep (mean sleep_total) for the same or less than herbis
+H1 is that omnis sleep (mean sleep_total) for more than herbis
+
+Perform one-sided, two-sample t-test to compare difference in means.
+
+Set alpha = 0.05.
+
+```{r}
+# calculate observed diff in means
+omni_mean_sleep_total <- msleep %>% 
+  filter(vore == "omni") %>% 
+  summarise(mean_sleep_total = mean(sleep_total)) %>% 
+  pull()
+
+herbi_mean_sleep_total <- msleep %>% 
+  filter(vore == "herbi") %>% 
+  summarise(mean_sleep_total = mean(sleep_total)) %>% 
+  pull()
+
+# for difference in means, calculate omni - herbi (this order matters!)
+obs_diff_in_means_oh <- omni_mean_sleep_total - herbi_mean_sleep_total
+obs_diff_in_means_oh
+```
+
+```{r}
+# make a smaller df to use
+msleep_herbi_omni <- msleep %>% 
+  filter(vore %in% c("herbi", "omni")) %>% 
+  select(vore, sleep_total)
+```
+
+
+```{r}
+null_dist <- msleep_herbi_omni %>% 
+  specify(response = sleep_total, explanatory = vore) %>%
+  hypothesise(null = "independence") %>% 
+  generate(reps = 10000, type = "permute") %>% 
+  calculate(stat = "diff in means", order = c("omni", "herbi"))
+# omni - herbi: H0 is omni is same or less than herbi, if true then we are looking for diff in means <= 0. If H0 not true, we expect mu to be > 0, so look for one-sided with direction = right
+```
+
+
+```{r}
+null_dist %>% 
+  visualise(bins = 30) +
+  shade_p_value(obs_stat = obs_diff_in_means_oh, direction = "right")
+```
+
+```{r}
+null_dist %>% 
+  get_p_value(obs_stat = obs_diff_in_means_oh, direction = "right")
+```
+With p = 0.12, this is not less than our set alpha (p > 0.05) so we cannot reject the null hypothesis. Despite the mean sleep for omnivores being greater than that of herbivores (by about 1.4 hours), there is not enough evidence to say that omnivores sleep "statistically significantly" more than herbivores.
+
+### Q4
+
+_Perform an appropriate statistical test to determine whether the proportion of domesticated animal types in the population of animal types is greater than 5%_
+
+_Think about creating an is_domesticated variable for the analysis_
+
+One sample: prop(is_domesticated = TRUE) compared to external stat (prop = 5%)
+
+  * null = "point"
+  * type = "draw"
+
+Comparing: proportion (Prop), 
+
+  * response = is_domesticated, success = "TRUE"
+  * calculate obs_prop
+  * given prop = 0.05
+  * stat = "prop"
+  
+Alpha = 0.05
+
+H0: prop(is_domesticated = TRUE) == 0.05
+h1: prop(is_domesticated = TRUE) ≠ 0.05
+
+```{r}
+# create df to use
+msleep_domest <- msleep %>% 
+  mutate(is_domesticated = conservation == "domesticated") %>% 
+  # 29 NAs in conservation, including humans - but none of these are domesticated afaik, so I will label them FALSE
+  mutate(is_domesticated = if_else(is.na(is_domesticated), FALSE, is_domesticated)) %>% 
+  select(conservation, is_domesticated)
+
+# calculate obs prop
+obs_prop <- msleep_domest %>% 
+  # use sum because TRUE = 1, FALSE = 0
+  summarise(prop = sum(is_domesticated)/n()) %>% 
+  pull()
+
+obs_prop
+```
+
+One sample: prop(is_domesticated = TRUE) compared to external stat (prop = 5%)
+
+  * null = "point"
+  * type = "draw"
+
+Comparing: proportion (Prop), 
+
+  * response = is_domesticated, success = "TRUE"
+  * calculate obs_prop
+  * given prop = 0.05
+  * stat = "prop"
+
+```{r}
+null_dist <- msleep_domest %>% 
+  # look for proportion that are domesticated
+  specify(response = is_domesticated, success = "TRUE") %>% 
+  # compare to given point estimate: prop (p) 5%
+  hypothesise(null = "point", p = 0.05) %>% 
+  generate(reps = 20000, type = "draw") %>% 
+  calculate(stat = "prop")
+```
+
+```{r}
+null_dist %>% 
+  visualise(bins = 20) +
+  shade_p_value(obs_stat = obs_prop, direction = "both")
+```
+
+```{r}
+null_dist %>% 
+  get_p_value(obs_stat = obs_prop, direction = "both")
+```
+p < 0.05 is my threshold - here p = 0.0176, so p < 0.05, so I can reject the null hypothesis and say that there is sufficient evidence to suggest that the proportion of domesticated mammals in our dataset is significantly different to 5% (with an expected false positive rate of ~2%; there's a 1 in 50 chance I'm wrong here). 
+
+The proportion of domesticated mammals in our data seems to be higher than 5% (calculated at 12%), and this is using the strictest assumption, where we made everything false unless specified domesticated (the proportion could only be higher if we were wrong about any of these).
+
+## Section 1.2 WWYD
+
+    Write out: 
+
+    1. What kind of test you would use
+    2. H0 and Ha in both mathematical notation and in words.
+    3. State the method you would use to generate the null distribution (bootstrap, permutation or draw).
+
+kinds of test:
+
+one sample compare to a point estimate
+two-sample independent test (means, props or other stat)
+two-sample paired test (means, props or other stat)
+
+### Q1: coffee shop
+
+1. Test:
+
+we are looking to understand if prop(aware) of our sample is different to an expected point estimate (40%), so do a **one-sample two-sided hypothesis test** to compare to the point estimate of proportion
+
+2. 
+
+H0: the proportion of people in my sample who are aware of the coffee shop is 40%
+
+    π(aware == TRUE) = 0.40
+
+H1: the proportion of people who are aware of the coffee shop is less than or higher than 40% 
+
+    π(aware == TRUE) ≠ 0.40
+
+3. method to generate null dist: use a "permute" to shuffle the label of aware/not aware
+
+### Q2: website
+
+1. Test:
+
+the A/B groups are not the same people being shown two different things, they are independent, and we specifically want to test "that test "the hypothesis that website users overall are more likely to click on the banner if positioned at the top of the page" which means that we are specifying a direction, so do a **two-sample independent one-sided test to compare mean(click through rate)**
+
+2. 
+
+H0: the mean click-through rate for group B (banner at top) is the same or less than the mean click-through rate for group A (banner on right, status quo)
+
+    µ(CTR-B) ≤ µ(CTR-A)
+
+H1: the mean click-through rate for group B is greater than the mean click-through rate for group A
+
+    µ(CTR-B) > µ(CTR-A)
+
+3. method to generate null dist: "bootstrap" to resample our numeric data
+
+### Q3: manufacturing parts
+
+1. Test:
+
+one sample two-sided test to compare to an expected point estimate (mean width is 145)
+
+2. 
+
+H0: the mean width of the sample of parts is 145mm
+
+    µ(width) == 145mm
+
+H1: the mean width of the sample of parts differs from 145mm
+
+    µ(width) ≠ 145mm
+
+3. method to generate null dist: numeric so "bootstrap" to resample from the sample
+
+## Section 1. 3 Interpret
+
+### Q1: coffee shop
+
+    Significance level: 0.05, calculated p-value: 0.07
+
+We set the thershold at 0.05 because we would be happy to have a 5% false positive rate. With the data available, we do not have sufficient evidence to reject the null hypothesis at this significance threshold; we expect a false positive rate of 7%.
+
+In this situation, I would recommend surveying more people if the question is worth investigating further, since the original sample was quite small (200 of 30,000 people), perhaps with 500 people. If the p value came out the same, I would say that there is insufficient evidence to reject the null hypothesis, even though the false positive rate is quite low. But getting a more accurate answer may not be dramatically meaningful for the situation - it's a fairly small town, and you ight hope awareness levels to be higher than 40% so perhaps the coffee shop owner could do more to raise awareness of the shop nonetheless (if they have resources to commit to this).
+
+### Q2: website
+
+    Significance level: 0.01, p-value: 0.006
+
+the alpha was set fairly conservatively, being comfortable with 1% false positive rate and the sample statistic p-value is clealry lower than this, so I would say there is sufficient evidence to reject the null hypothesis. This suggests that there is a higher click-through rate when the banner is positioned at the top. 
+
+However, while the statistic suggests there is a difference, without knowing more about the size of the difference (how many more click-throughs?) and the consequences (in terms of profitability or other KPI), it is not clear whether it would make business sense to invest in redesigning the website to move the banner to the top (from the right). (As analyst I can suggest there is a significant difference and leave it to the company execs to decide what to do with this information.)
+
+### Q3: manufacturing parts
+
+    Significance level: 0.05, p-value: 0.55
+    
+With a p-value of 0.55, the sample parts have a mean width sitting pretty much in the middle of the normal distribution of expected mean widths, when centred on 145mm. This means we do not reject the null hypothesis, we have sufficient evidence to say the mean width of our sampled parts does not differ from the required 145mm. This is good, we are within regulations, well done manufacturers!
