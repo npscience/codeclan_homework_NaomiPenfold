@@ -5,17 +5,578 @@ output: html_notebook
 
 ```{r}
 library(tidyverse)
-transactions <- read_csv("data/online_retail_subset.csv")
+library(janitor)
+transactions <- read_csv("data/online_retail_subset.csv") %>% 
+  clean_names()
 ```
 
 ```{r}
 head(transactions)
 ```
 
-Assume the same invoice number == the same basket or transaction.
+# 2.4 Association rule
+
+The same invoice number == the same basket or transaction.
 
     item A: ‘HEART OF WICKER SMALL’ (StockCode 22469)
     item B: ‘LARGE CAKE TOWEL PINK SPOTS’ (StockCode 21110)
 
 
+## Question 1.
 
+Calculate the support for item A
+ (this will be the support for a single item)
+ 
+    Support for A = num transactions in which A bought / total number of transactions
+    
+```{r}
+# proportion of invoices that include stock code 22469
+num_A_in_basket <- transactions %>% 
+  select(invoice_no,stock_code) %>% 
+  # make A = 1, everythig else = 0
+  mutate(numeric_A = if_else(stock_code == 22469, 1, 0)) %>% 
+  summarise(basket_contains_A = sum(numeric_A), .by = invoice_no) %>% 
+  summarise(num_invoices = n(), .by = basket_contains_A)
+
+num_A_in_basket
+```
+
+From this table, we can see 1298 invoices do not contain A, while 108 contain 1 or more As. 
+
+```{r}
+total_baskets <- transactions %>% 
+  distinct(invoice_no) %>% 
+  nrow()
+
+total_baskets # 1406, matches the above
+
+support_A <- num_A_in_basket %>%
+  filter(basket_contains_A > 0) %>% 
+  summarise(support_A = sum(num_invoices)/total_baskets) %>% 
+  pull()
+
+support_A
+```
+
+Probability that a transaction includes one or more A is 0.0768 (or 108/1406), or ~7.7%. This is the support for A.
+
+
+## Q2 
+
+Calculate the support and confidence for rule (A→B)
+
+    Support(A->B) = num(A and B bought together) / total_num_transactions
+    
+We now know total number of transactions (1406), so we need to find out how many include both A and B
+
+If we have column for A = 1, and column for B = 1, and each invoice is sum of each column, then only baskets with both A and B will multiply to 1.
+
+i.e. we are looking to collapse invoice into 1 row and have both A = TRUE and B = TRUE.
+
+Note: B is stock code 21110
+
+```{r}
+# make df that sums number of As and number of Bs in each invoice
+AB_basket_status <- transactions %>% 
+  select(invoice_no,stock_code) %>% 
+  mutate(numeric_A = if_else(stock_code == 22469, 1, 0),
+         numeric_B = if_else(stock_code == 21110, 1, 0)) %>%
+  select(-stock_code) %>% 
+  group_by(invoice_no) %>% 
+  summarise(across(.cols = c(numeric_A, numeric_B),
+                   .fns = ~ sum(.x))) %>% 
+  # if product_AB >=1, then basket contains both A and B
+  mutate(product_AB = numeric_A * numeric_B) 
+
+support_AB <- AB_basket_status %>% 
+  # note: still 1406 transaction in total
+  # filter for product >= 1
+  filter(product_AB > 0) %>% 
+  summarise(supportAB = n()/total_baskets) %>% 
+  pull()
+
+support_AB
+```
+**Support(A_>B) = 5/1406, ~0.36%.**
+
+Confidence is like conditional probability - if we have A in the basket, what's the probability we'll also have B?
+
+    prob(A and B) / prob(A)
+
+So confidence(A->B) is:
+```{r}
+confidence_AB <- support_AB / support_A
+
+confidence_AB
+```
+
+Confidence(A->B) is ~4.7%. i.e. when A is bought, most of the time it is not bought with B (108 baskets contain 1 or more of A) and only 5% of the time is it bought together with B (5 baskets contain both A and B) - i.e. 5/108.
+
+
+## Q3
+
+Calculate the lift for (A→B)
+
+    lift(A→B)=sup(A→B)/(sup(A)×sup(B))
+    
+We have already calculated support(A->B) and support(A), but now also need to calculate support(B)
+
+```{r}
+support_B <- AB_basket_status %>% 
+  summarise(basket_contains_B = sum(numeric_B), .by = invoice_no) %>% 
+  summarise(num_invoices = n(), .by = basket_contains_B) %>% 
+  filter(basket_contains_B > 0) %>% 
+  summarise(support_B = sum(num_invoices)/total_baskets) %>% 
+  pull()
+
+support_B
+```
+
+Support(B) = 0.00996 (or 14 baskets containing 1+ B out of 1406 total baskets)
+
+```{r}
+# lift(A→B)=sup(A→B)/(sup(A)×sup(B))
+lift_AB <- support_AB/(support_A*support_B)
+lift_AB
+```
+
+lift(A->B) = 4.65, which is >> 1 and indicates that item A and B are highly likely to be bought together
+
+
+Manually check:
+
+* there are 1406 distinct invoice numbers, so 1406 baskets
+* A is stock code 22469, 'HEART OF WICKER SMALL'
+* B is stock code 21110, 'LARGE CAKE TOWEL PINK SPOTS'
+
+```{r}
+transactions %>% 
+  filter(str_detect(.$description, "HEART\ OF\ WICKER\ SMALL")) %>% 
+  summarise(num_in_basket = n(), .by = invoice_no) %>% 
+  arrange(desc(num_in_basket))
+```
+
+108 baskets contain item A, two baskets contain 2 of these
+
+So support(A) = 108 / 1406 - as found above
+
+```{r}
+transactions %>% 
+  filter(str_detect(.$description, "LARGE\ CAKE\ TOWEL\ PINK\ SPOTS")) %>% 
+  summarise(num_in_basket = n(), .by = invoice_no) %>% 
+  arrange(desc(num_in_basket))
+```
+
+14 baskets contain one or more B; all 14 contain only one.
+
+So support(B) is 14 / 1406 - as found above
+
+```{r}
+# look for either A or B
+
+# baskets with A in
+baskets_A <- transactions %>% 
+  filter(str_detect(.$description, "HEART\ OF\ WICKER\ SMALL")) %>% 
+  distinct(invoice_no)
+
+# baskets with B in
+baskets_B <- transactions %>% 
+  filter(str_detect(.$description, "LARGE\ CAKE\ TOWEL\ PINK\ SPOTS")) %>% 
+  distinct(invoice_no)
+
+# find baskets that appear in both lists
+bind_rows(baskets_A, baskets_B) %>% 
+  summarise(duplicates = n(), .by = invoice_no) %>% 
+  filter(duplicates >1)
+
+```
+There are 5 distinct baskets that contain both A and B.
+
+So 108 baskets have A in them
+14 have B in them
+5 of these have both of them
+
+```{r}
+# make a df to use in tabyl
+AB_df <- AB_basket_status %>% 
+  mutate(numeric_A = if_else(numeric_A > 0, "Contains A", "No A"),
+         numeric_B = if_else(numeric_B > 0, "Contains B", "No B"))
+
+AB_tabyl <- AB_df %>% 
+  tabyl(var1 = numeric_A, var2 = numeric_B) %>% 
+  adorn_totals(where = c("row", "col"))
+
+AB_tabyl_pc <- AB_tabyl %>% 
+  adorn_percentages(denominator = "all")
+
+AB_tabyl
+AB_tabyl_pc
+```
+
+```{r}
+support_A
+support_B
+support_AB
+```
+Support(A), support(B) and support(AB) can all be found in the contingency tables - all simple probabilities (proportion of total transactions).
+
+Confidence(A->B) is equivalent to conditional prob:
+
+"The proportion of purchases of A where B has also been purchased" is like saying the number of baskets with AB once we already know we're looking at baskets with B in already.
+
+So looking at the A row only, how much more/less likely if A to be found with B versus without? Calculate proportion of A found with B versus total probability A found
+
+```{r}
+# confidence(A --> B) <- support(A --> B) / support(A)
+confidence_AB
+
+# from AB_tabyl
+# 5 baskets with A in also have B in, out of a total of 108 baskets with A in
+5/108
+```
+
+If Confidence is 1 then it's 100% probability that A is found with B, i.e A is only ever found with B, the number of baskets with A and B == the number of baskets with A in overall.
+
+Here, confidence is <5% so actually A is mostly found without B.
+
+**Lift** is a test of dependence between A and B
+
+    lift(A→B) = sup(A→B) / sup(A)×sup(B)
+
+if support_AB == supportA * support B then A and B are independent and lift = 1, i.e. lift is neutral (no lift effect in either direction). Lift < 1 = negative, detractor, if you're buying B you're less likely to buy A. Lift > 1 means you're more likely to find A and B together than independently, so they enhance each other's sales.
+
+```{r}
+# lift(A --> B)
+lift_AB
+
+# from tabyl 
+# 5 baskets have A and B -> support(AB) = 5/1406 = 0.003556188
+# 108 baskets have A (with/without B) -> support(A) = 108/1406 = 0.07681366 - a lot more A are found without B
+# 14 baskets have B (with/without B) -> support(B) = 14/1406 = 0.009957326 - but 5 of 14 baskets of B also have A so B is lifted by A
+(5/1406) / ((108/1406)*(14/1406))
+```
+
+So the prob(A and B) together is nearly 5 times more likely than if they were totally independent events, and so having one of A or B in the basket lifts the sale of the other item.
+
+# 2.6 arules 
+
+    The **apriori algorithm** is often used as a way of selecting ‘interesting’ rules. It will calculate all the support, confidence and lift values for the item/itemset combinations of your dataset and will return those with support values greater than a pre-defined threshold value set by the user.
+
+    Read up on the `arules` and `arulesViz` packages, which make use of the ‘apriori’ algorithm http://www.salemmarafi.com/code/market-basket-analysis-with-r/comment-page-1/
+
+Notes:
+
+* we are looking for items that are typically bought together, more often than if they were independent / no association. 
+  * An example: sometimes cheese is bought with kitchen roll, but the probability of cheese and loo roll == prob(cheese) * prob(loo roll), i.e. these items are independent, and there's no evidence that cheese and loo roll complement each other in the basket. However, cheese and wine are bought together more often than is likely from simple probability (p(cheese AND wine) > p(cheese)*p(wine)) - which means that they are associated
+   * Not just two items, but sets of items, e.g. if cheese and wine, likely to also buy crackers, grapes, etc. More likely than if these were unrelated items. Algorithm looks for these patterns - where do items or groups of items (sets) appaear more often than is likly by chance (independent probabilities)?
+* 
+
+```{r}
+library(arules)
+library(arulesViz)
+library(datasets)
+```
+ _Note these libraries mask some functions, e.g. dplyr::recode_
+
+```{r}
+data(Groceries)
+```
+
+
+```{r}
+class(Groceries)
+```
+```{r}
+class(transactions)
+```
+
+## reformat transactions
+First, transactions data needs to be in the right format for arules, needs to be an `itemMatrix` (transactions, associations) - homework file tells how to do this:
+
+```{r}
+transactions_reformat <- transactions %>%
+  select(invoice_no, description) %>%
+  na.omit()
+
+write_csv(transactions_reformat, "transactions_reformat.csv")
+
+apriori_format <- read.transactions("transactions_reformat.csv", format = "single", sep = ",", header = TRUE, cols = c("invoice_no", "description"))
+```
+
+```{r}
+apriori_format
+```
+
+```{r}
+inspect(head(apriori_format))
+```
+This format concatenates all the items in an invoice into one cell, so each row is the contents of the basket and the basket id (invoice number).
+
+Note, we are using format = "single" because our original df has 1 row = 1 item, with 1 invoice split across multiple rows. Format = "basket" is for data where 1 row = 1 basket and items are already listed together, separated by whatever sep =.
+
+There are 786 transactions in this format - not all 1406 baskets from the raw data. **Q: Why is this?** Are some sets duplicated in our original data, and we only see the first invoice_no for this set?
+
+## check why fewer transactions, see stock code
+
+```{r}
+transactions %>% 
+  summarise(across(.cols = everything(),
+                   .fns = ~ sum(is.na(.x))))
+```
+
+114 NAs in description.
+Maybe use stock code instead?
+
+```{r}
+transactions_reformat_stock <- transactions %>%
+  select(invoice_no, stock_code) %>%
+  na.omit()
+
+write_csv(transactions_reformat_stock, "transactions_reformat_stock.csv")
+
+apriori_format_stock <- read.transactions("transactions_reformat_stock.csv", format = "single", sep = ",", header = TRUE, cols = c("invoice_no", "stock_code"))
+```
+
+```{r}
+apriori_format_stock
+```
+
+Now there are all 1406 transactions.
+
+```{r}
+# make a lookup list of item description by stock_code
+item_lookup <- transactions %>% 
+  select(stock_code, description) %>% 
+  distinct()
+
+item_lookup
+item_lookup %>% 
+  filter(is.na(description))
+```
+2,747 items by stock code, 103 of which have no description.
+
+Look at most frequently bought items (by stock_code)
+```{r}
+itemFrequencyPlot(apriori_format_stock,topN=20,type="absolute")
+```
+
+```{r}
+item_lookup %>% 
+  filter(stock_code %in% c("85123A", "22086", "22423", "84029E", "22111"))
+```
+
+Note that one stock code has 2 descriptions. Check if this is true for others:
+
+```{r}
+item_lookup %>% 
+  summarise(duplicate_codes = n(), .by = stock_code) %>% 
+  filter(duplicate_codes > 1)
+```
+
+Ok, so stock code is not a unique identifier.
+
+Check it was ok to use stock_code as unique id for items A and B in earlier analysis:
+```{r}
+item_lookup %>% 
+  filter(description %in% c("HEART OF WICKER SMALL", "LARGE CAKE TOWEL PINK SPOTS"))
+```
+Yes - these stock codes are unique and 1:1 with item description.
+
+## itemFrequencyPlot
+
+Revert to using item descriptions for analysis to keep things simple - use `apriori_format`:
+
+```{r}
+itemFrequencyPlot(apriori_format,topN=20,type="absolute")
+```
+
+The tealight holder is the most purchased item, after this the others in the top 20 are purchased with quite similar frequencies.
+
+```{r}
+itemFrequencyPlot(apriori_format,topN=50,type="absolute")
+```
+
+Not nice x-labs text size, but can see frequency reduction down the list is quite gradual over the top 50 too.
+
+Look at the top association rules.
+
+## apriori() to make rules
+
+Set minimum support level: 0.01 - 1% likelihood of buying an item or set of items
+Set confidence level: 0.75 - if buying item A, 75% likely to also buy item B
+
+```{r}
+rules <- apriori(apriori_format, parameter = list(supp = 0.01, conf = 0.8))
+```
+
+Playing with minimum support:
+
+* 0.1 -> no rules
+* 0.05 -> no rules
+* 0.01 -> 54,237 rules
+* 0.03 -> 0 rules
+* 0.02 -> 5 rules: jam jar lids, bath sponges, alarm clocks, popcorn holders -- all the same item type but in different colours / shapes / sizes
+* 0.005 -> took a while to run...
+* 0.008 -> 507,069 rules, quick to run
+
+Let's stick with min supp = 0.01, min conf = 0.8
+
+```{r}
+inspect(rules[1:5])
+```
+Note from help file: _"The default behavior is to mine rules with minimum support of 0.1, minimum confidence of 0.8, maximum of 10 items (maxlen), and a maximal time for subset checking of 5 seconds (maxtime)."_
+
+## Summary & inspect rules
+
+```{r}
+summary(rules)
+```
+This summary info tells us:
+
+* In the 786 transactions, the algorithm has found 54,237 rules of sizes 2 (1:1) to 10 (lhs set of 9 : rhs set of 1) with mode set length of 6 (5 in set on lhs : 1 on rhs)
+* These rules have support 0.01018 (our min was 0.01) to 0.02799 <- the max is quite high off the central and 3rd quartile measures (all ~0.01), which indicates it may be unusual.
+* Confidence ranges from 0.8 (our set minimum threshold) to 1 (which is the maximum possible, 100% likelihood) - and the quartiles and central measures indicate at least 75% of the rules have confidence == 1.
+* Lift ranges from 7.312 to 78.60, with 50% of the data between 17.915 and 48.369.
+
+```{r}
+inspect(rules[1:10])
+```
+
+## Rules sorted 
+
+We need to sort the table! (Says so in recommended web link to read: http://www.salemmarafi.com/code/market-basket-analysis-with-r/comment-page-1/)
+
+```{r}
+# top 20 by confidence
+rules_conf<-sort(rules, by="confidence", decreasing=TRUE)
+inspect(rules_conf[1:20])
+```
+
+We know from the summary that most of the rules have confidence = 1, so this is a bit of a misleading ordering category.
+
+```{r}
+# top 20 by lift
+rules_lift<-sort(rules, by="lift", decreasing=TRUE)
+inspect(rules_lift[1:20])
+```
+
+A different set of top 20, note there are 4 rules with confidence < 1 in this top 20 (from 0.82 upwards).
+
+All but one of the top 20 rules (with the greatest lift) are sets of herb markers; the other one is the combo of a bath sponge, bag and mini tape measure.
+
+```{r}
+# top 20 by support (i.e. probability of buying individual items - so the items most frequently bought in general)
+rules_support <- sort(rules, by="support", decreasing=TRUE)
+inspect(rules_support[1:20])
+```
+
+Range of support in the top 20 rules here is 0.01399 (i.e. 1.4% of transactions involve _?? item on rhs ??: small glass heart trinket pot_) to 0.0279... (i.e. 2.8% of transactions involve _small popcorn holder_)
+
+**Interpretation:** The association with the most commonly purchased single item (small popcorn holder) is with a large popcorn holder, with confidence 91.7% (likelihood large is bought if small in basket) and lift of 15 (how much large popcorn holder sales are raised by small popcorn holder).
+
+## 1:1 rules
+What if I wanted to find which individual items are frequently bought together, not sets in LHS:
+```{r}
+# specify max length of lhs+rhs = 2, so 1:1 pairings
+rules_1to1 <- rules <- apriori(apriori_format, parameter = list(supp = 0.01, conf = 0.8, maxlen=2))
+```
+
+127 1:1 rules.
+
+```{r}
+summary(rules_1to1)
+```
+Of these 127 1:1 rules
+
+* support range includes same min and max as for full list of rules (above)
+* confidence: 3rd quartile ≠ 1 so there are higher proportion of rules with confidence < 1 than above
+* lift: higher min and 3rd quartile, same max, as above - indicates lift distribution is shifted higher in this 1:1 set
+
+
+```{r}
+# top 20 rules by confidence
+rules1to1_conf <- sort(rules, by="confidence", decreasing=TRUE)
+inspect(rules1to1_conf[1:20])
+
+# top 20 rules by lift
+rules1to1_lift <- sort(rules, by="lift", decreasing=TRUE)
+inspect(rules1to1_lift[1:20])
+```
+
+In top 20 by confidence, top 7 are the ones with confidence = 1 (herb markers, mini tape measure with a bath sponge); then there are more items of the same type where two different designs/colours have been bought together (e.g. coffee mugs with different designs). Also, toast-its are bought with ceramic trinket boxes (1:1 rule for same toast it with two different designs of trinket box), and white goose feather christmas tree has been bought with several designs of trinket pot/boxes.
+
+In top 20 by lift, we again have the herb markers, which dominate all the high lift scores.
+
+## arulesViz
+
+### associations2igraph
+
+Visualise the association rules:
+
+```{r}
+# make a graph (nodes!)
+nodes_graph <- associations2igraph(rules)
+
+plot(nodes_graph)
+```
+
+There are too many associations to make sense of here
+
+Let's look at the 20 herb marker 1:1 associations:
+
+```{r}
+nodes_graph_top20_1to1_lift <- associations2igraph(rules1to1_lift[1:20])
+
+plot(nodes_graph_top20_1to1_lift)
+```
+This graph suggests there are some herb markers that are more commonly bought in pairs/sets than others, those with the most arrows pointing inwards to the, e.g. basil, thyme, mint, rosemary, parsley.
+
+Let's look at the top 20 by support in the full rules:
+
+```{r}
+nodes_graph_top20_support <- associations2igraph(rules_support[1:20])
+
+plot(nodes_graph_top20_support)
+```
+There are no edges between the nodes, which suggests each association in this top 20 is independent of each other (doesn't contain any common items!)
+
+```{r}
+library("tidygraph")
+as_tbl_graph(nodes_graph_top20_1to1_lift)
+```
+
+_Don't understand this table view_
+
+### ruleExplorer shiny app
+
+```{r}
+library(shinythemes)
+ruleExplorer(apriori_format)
+```
+
+This returns a shiny app, requires "shinythemes" package.
+
+Can play with support and confidence thresholds, and order by confidence, lift etc in the resulting rules.
+
+e.g. raising min conf to 0.9 reduces rules to ~6000, more manageable
+
+# Summary
+
+Can use association rules to manually calculate the support, confidence and lift for defined item pairings.
+
+Can use the apriori algorithm, with `arules` and `arulesViz` packages, to look at transactions data and find associations between items - in particular, useful for naive exploration and looking for associations between set of items and an individual item. to use this:
+
+* first, reformat transactions data using `read.transactions()`
+* using this reformatted data, you can make a frequency graph for individual items using `itemFrequencyPlot()` - limit to top 10-20 most bought items
+* also using reformatted data, use `apriori()` and provide args for minimum support and confidence thresholdto find association rules: e.g. `rules <- apriori(data, parameter = list(supp = 0.01, conf = 0.8))`
+  * can also specify maxlen in apriori parameters to limit number of items in a set in lhs (where maxlen = n limits lhs set size to n-1)
+* summary() to get summary statistics, and inspect(x[1:n]) to see the top n, for which you can specify ordering rule (by support, confidence, lift...)
+* arulesViz has functions to:
+  * `ruleExplorer()`: produces a shiny app with dynamic parameter args to create rules table and explore by sorting by columns and searching within the table
+  * `x <- associations2igraph()` then `plot(x)` : draw a graph with nodes being items and edges being association directions (i think?? No edges means no items are in more than 1 association?).
+
+
+For more info:
+
+* docs for arules: https://cran.r-project.org/web/packages/arules/readme/README.html ; http://mhahsler.github.io/arules/ 
+* docs for arulesViz: https://github.com/mhahsler/arulesViz
