@@ -264,6 +264,11 @@ H1: the proportion of people who are aware of the coffee shop is less than or hi
 
 3. method to generate null dist: use a "permute" to shuffle the label of aware/not aware
 
+
+#### review
+
+* testing for 40% or more, so Ha > 0.40; right sided test; use a "draw" for proportion...
+
 ### Q2: website
 
 1. Test:
@@ -281,6 +286,10 @@ H1: the mean click-through rate for group B is greater than the mean click-throu
     µ(CTR-B) > µ(CTR-A)
 
 3. method to generate null dist: "bootstrap" to resample our numeric data
+
+#### review
+
+* solutions say to use "permute" not "bootstrap", using a proportion measure (proportion clicked through = CTR) - note this in the question "...the ‘click through rate’ (CTR) on the banner, i.e. what proportion of sampled users clicked on the banner..."
 
 ### Q3: manufacturing parts
 
