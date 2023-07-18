@@ -316,9 +316,24 @@ top_cancers_scotland_males_means <- comb_5_hb_inc_rate_age %>%
 top_cancers_scotland_males <- top_cancers_scotland_males_means %>% 
   pull(cancer_site)
 
-
 top_cancers_scotland_females_means
 top_cancers_scotland_males_means
+```
+
+```{r}
+comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Females" & cancer_site %in% top_cancers_scotland_females) %>% 
+  ggplot(aes(age_bracket, cancer_site, fill = incidence_rate)) +
+  geom_tile() +
+  scale_fill_viridis_c()
+```
+
+```{r}
+comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Male" & cancer_site %in% top_cancers_scotland_males) %>% 
+  ggplot(aes(age_bracket, cancer_site, fill = incidence_rate)) +
+  geom_tile() +
+  scale_fill_viridis_c()
 ```
 
 
