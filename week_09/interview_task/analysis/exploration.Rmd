@@ -64,7 +64,7 @@ What are the networks? See https://www.nss.nhs.scot/specialist-healthcare/nation
 Which hbs are in which network? Which network contains Borders hb? 
 
 * Not in west: https://www.woscan.scot.nhs.uk/
-* In South East (SCAN): "SCAN brings together cancer professionals from four NHS Boards: NHS Borders, Dumfries & Galloway, Fife and NHS Lothian, which hosts the Cancer Centre to work together.  The aim is to ensure equitable provision of high quality, clinically effective, patient-centred cancer services for a population of approximately 1.5m people." https://www.scan.scot.nhs.uk/about-us/.
+* In **South East (SCAN)**: "SCAN brings together cancer professionals from four NHS Boards: NHS Borders, Dumfries & Galloway, Fife and NHS Lothian, which hosts the Cancer Centre to work together.  The aim is to ensure equitable provision of high quality, clinically effective, patient-centred cancer services for a population of approximately 1.5m people." https://www.scan.scot.nhs.uk/about-us/.
 
 What are their business needs?
 
@@ -83,9 +83,260 @@ Incidence:
 Note different from prevalence:
 
     "Cancer prevalence is a measure of the burden of cancer in a population at a particular point in time. One-year prevalence is the number of patients diagnosed in the previous year who are still alive; 20-year prevalence is the number of patients diagnosed in the previous 20 years who are still alive."
-    
 
-## epxlore other datasets (if time)
+```{r}
+colnames(incidence_hb)
+```
+
+#### incidence rate variables
+
+Defined in data dictionary for each dataset (scroll down):  https://www.opendata.nhs.scot/dataset/annual-cancer-incidence/resource/3aef16b7-8af6-4ce0-a90b-8a29d6870014
+
+* crude_rate: "The crude rate is calculated per 100,000 person-years at risk"
+* easr: "The European age-standardised (using the 2013 European Standard Population) incidence rate per 100,000 person-years at risk"
+* wasr: "The World age-standardised incidence rate per 100,000 person-years at risk (World standard population)"
+* sir (standardised incidence ratio): "The standardised incidence ratio"
+
+### plotting incidencefor hb (basic)
+
+```{r}
+# plot crude rate
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  ggplot(aes(x = year, y = crude_rate, colour = hb)) +
+  geom_line() #+
+  #geom_ribbon(aes(ymin = crude_rate_lower95pc_confidence_interval,
+              #     ymax = crude_rate_upper95pc_confidence_interval),
+              # alpha=0.3)
+
+# plot borders with ci range
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  filter(hb == hb_borders) %>% 
+  ggplot(aes(x = year, y = crude_rate)) +
+  geom_line() +
+  geom_point() +
+  geom_ribbon(aes(ymin = crude_rate_lower95pc_confidence_interval,
+                  ymax = crude_rate_upper95pc_confidence_interval),
+              alpha=0.3)
+```
+
+```{r}
+# plot easr
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  ggplot(aes(x = year, y = easr, colour = hb)) +
+  geom_line() #+
+  #geom_ribbon(aes(ymin = crude_rate_lower95pc_confidence_interval,
+              #     ymax = crude_rate_upper95pc_confidence_interval),
+              # alpha=0.3)
+
+# plot borders with ci range
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  filter(hb == hb_borders) %>% 
+  ggplot(aes(x = year, y = easr)) +
+  geom_line() +
+  geom_point() +
+  geom_ribbon(aes(ymin = easr_lower95pc_confidence_interval,
+                  ymax = easr_upper95pc_confidence_interval),
+              alpha=0.3)
+```
+
+
+```{r}
+# plot wasr
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  ggplot(aes(x = year, y = wasr, colour = hb)) +
+  geom_line() #+
+  #geom_ribbon(aes(ymin = crude_rate_lower95pc_confidence_interval,
+              #     ymax = crude_rate_upper95pc_confidence_interval),
+              # alpha=0.3)
+
+# plot borders with ci range
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  filter(hb == hb_borders) %>% 
+  ggplot(aes(x = year, y = wasr)) +
+  geom_line() +
+  geom_point() +
+  geom_ribbon(aes(ymin = wasr_lower95pc_confidence_interval,
+                  ymax = wasr_upper95pc_confidence_interval),
+              alpha=0.3)
+```
+
+```{r}
+# plot sir
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  ggplot(aes(x = year, y = standardised_incidence_ratio, colour = hb)) +
+  geom_line() #+
+  #geom_ribbon(aes(ymin = sir_lower95pc_confidence_interval,
+              #     ymax = sir_upper95pc_confidence_interval),
+              # alpha=0.3)
+
+# plot borders with ci range
+incidence_hb %>% 
+  filter(cancer_site == "All cancer types" & sex == "All") %>% 
+  filter(hb == hb_borders) %>% 
+  ggplot(aes(x = year, y = standardised_incidence_ratio)) +
+  geom_line() +
+  geom_point() +
+  geom_ribbon(aes(ymin = sir_lower95pc_confidence_interval,
+                  ymax = sir_upper95pc_confidence_interval),
+              alpha=0.3)
+```
+
+#### interpretation
+
+incidence (crude rate) increasing over time in past years, but generally stable until 2017 when standardised (europe, world, general). Drop from 2017 to 2019 lower than usual trend. particularly pronounced when standardised (european, world and general). 
+
+### plot incidence factors for hb
+
+look at combined 5 year data
+
+```{r}
+colnames(comb_5yr_incidence_hb)
+```
+could pivot_longer for age?
+
+```{r}
+# incidence_rate by age bracket, split by hb
+comb_5_hb_inc_rate_age <- comb_5yr_incidence_hb %>% 
+  pivot_longer(cols = c(26:43),
+                 names_to = "age_bracket",
+               values_to = "incidence_rate") %>% 
+  mutate(age_bracket = str_replace(age_bracket, "^incidence_rate_age", ""),
+         age_bracket = str_replace(age_bracket, "\\_", ""),
+         age_bracket = factor(age_bracket, 
+                              levels = c(
+                                "under5", "5to9", "10to14", "15to19", "20to24",
+                                "25to29", "30to34", "35to39", "40to44", "45to49",
+                                "50to54", "55to59", "60to64", "65to69", "70to74",
+                                "75to79", "80to84", "85andover"
+                              )
+                                ),
+         older_age = if_else(
+    age_bracket %in% c("65to69", "70to74", "75to79", "80to84", "85andover"), 
+    "65 and over", "Under 65"))
+
+comb_5_hb_inc_rate_age %>%
+  filter(cancer_site == "All cancer types" & sex != "All") %>% 
+  ggplot(aes(x = age_bracket, y = incidence_rate)) +
+  geom_col(aes(fill = sex), position = "dodge") +
+  facet_wrap(~ hb)
+
+comb_5_hb_inc_rate_age %>%
+  filter(cancer_site == "All cancer types" & sex != "All" & hb == hb_borders) %>% 
+  ggplot(aes(x = age_bracket, y = incidence_rate)) +
+  geom_col(aes(fill = sex), position = "dodge")
+```
+
+incidence is higher in higher age groups, and greater for males than females from age 60, and before then greater for females --> do stats on all cancers, check in diff cancer types
+
+borders pattern looks similar to other hbs, but males in oldest age group particularly high
+
+further analysis: 
+
+* look at 5 highest age brackets: 65 and over
+* look by cancer type -- note too many cancer_sites, so find most prevalent ones
+
+```{r}
+# top cancers overall 
+top_cancers_scotland <- comb_5yr_incidence_hb %>% 
+  filter(sex == "All" & cancer_site != "All cancer types") %>%
+  summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
+  arrange(desc(mean_easr)) %>% 
+  slice_max(mean_easr, n = 10) %>% 
+  pull(cancer_site)
+
+top_cancers_scotland_means <- comb_5yr_incidence_hb %>% 
+  filter(sex == "All" & cancer_site != "All cancer types") %>%
+  summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
+  arrange(desc(mean_easr)) %>% 
+  slice_max(mean_easr, n = 10)
+
+# top cancers in borders
+top_cancers_borders <- comb_5yr_incidence_hb %>% 
+  filter(sex == "All" & hb == hb_borders) %>% 
+  arrange(desc(easr)) %>% 
+  select(cancer_site, easr) %>% 
+  filter(easr > 80) %>% 
+  pull(cancer_site)
+# 6 cancers with highest incidence (by easr)
+
+top_10_cancers_borders <- comb_5yr_incidence_hb %>% 
+  filter(sex == "All" & hb == hb_borders) %>% 
+  arrange(desc(easr)) %>% 
+  select(cancer_site, easr) %>% 
+  filter(cancer_site != "All cancer types") %>% 
+  slice_max(easr, n = 10) %>% 
+  pull(cancer_site)
+
+comb_5yr_incidence_hb %>% 
+  filter(cancer_site %in% top_10_cancers & sex != "All") %>% 
+  ggplot(aes(x = easr, y = reorder(cancer_site, easr))) +
+  geom_col(aes(fill = sex))
+```
+
+skin cancers are the highest incidence in past 5 years (2017-2021)
+
+```{r}
+comb_5_hb_inc_rate_age %>%
+  filter(cancer_site %in% top_cancers_scotland & sex != "All" & 
+           hb == hb_borders & older_age == "65 and over") %>% 
+  ggplot(aes(x = age_bracket, y = incidence_rate)) +
+  geom_col(aes(fill = sex), position = "dodge") +
+  facet_wrap(~ cancer_site, ncol = 2)
+```
+
+cancer incidence in men 65 and over driven by skin cancer (3 types)
+
+what about women?
+
+```{r}
+# find most prevalent cancers in females
+top_cancers_scotland_females_means <- comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Females" & cancer_site != "All cancer types") %>%
+  summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
+  arrange(desc(mean_easr)) %>% 
+  slice_max(mean_easr, n = 10) 
+
+top_cancers_scotland_females <- top_cancers_scotland_females_means %>% 
+  pull(cancer_site)
+
+# find most prevalent cancers in males
+top_cancers_scotland_males_means <- comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Male" & cancer_site != "All cancer types") %>%
+  summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
+  arrange(desc(mean_easr)) %>% 
+  slice_max(mean_easr, n = 10) 
+
+top_cancers_scotland_males <- top_cancers_scotland_males_means %>% 
+  pull(cancer_site)
+
+
+top_cancers_scotland_females_means
+top_cancers_scotland_males_means
+```
+
+
+```{r}
+# first calculate prop incidences / total for 65 and over
+comb_5_hb_inc_rate_age
+```
+
+
+
+
+
+```{r}
+# make crude rate for Borders hb
+```
+
+
+## explore other datasets (if time)
 
 from https://beta.isdscotland.org/find-publications-and-data/conditions-and-diseases/cancer/:
 
@@ -107,34 +358,35 @@ wait_62days <- read_csv("../data/raw_data/cwt_31_day_standard.csv") %>%
 ```{r}
 # check if possible to filter for borders and compare to incidence (annual)
 wait_31days_borders_allcancers <- wait_31days %>% 
-  filter(hb == hb_borders,
+  filter(hbt == hb_borders,
          cancer_type == "All Cancer Types") %>% 
   mutate(quarter = zoo::as.yearqtr(quarter)) %>% 
   mutate(year = year(quarter), .before = quarter) 
-# 141 rows
+# 67 rows
 
 # check qualifiers / quality
 wait_31days_borders_allcancers %>% 
   summarise(across(.cols = everything(),
                    .fns = ~ sum(is.na(.x))))
-# 96 NAs in hbtqf
-wait_31days_borders_allcancers %>% 
-  filter(is.na(hbtqf))
-# note hb = borders; hbt = different hb (hb for treatment??)
+# 67 NAs in hbtqf - so no issues there
 
 # check non_NA qfs for the two measures
 wait_31days_borders_allcancers %>% 
   filter(!is.na(number_of_eligible_referrals31day_standard_qf))
-# 3 with p, 2023 Q1
+# 2 with p, 2023 Q1
 
 wait_31days_borders_allcancers %>% 
   filter(!is.na(number_of_eligible_referrals_treated_within31days_qf))
-# same 3 with p, 2023 Q1
+# same 2 with p, 2023 Q1
 ```
 
-Not sure what "p" stands for. Can't find data dictionary on https://www.isdscotland.org/Health-Topics/Waiting-Times/Cancer/Data-Quality/ 
+"p" stands for provisional (expected to be finalised later): https://www.opendata.nhs.scot/dataset/statistical-qualifiers/resource/b80f9af0-b115-4245-b591-fb22775226c4 
 
-note: decide whether to filter for hb or hbt
+See also: https://www.isdscotland.org/Health-Topics/Waiting-Times/Cancer/Data-Quality/ 
+
+note: decide whether to filter for hb or hbt -- "31 day waiting standard split by health board of treatment and health board of residence as well as cancer type.
+
+The 31 day standard is measured against the health board of first treatment (HBT)"
 
 more about cancer data: https://www.isdscotland.org/Health-Topics/Waiting-Times/Cancer/Background/ 
 
@@ -158,5 +410,9 @@ could make graph of :
 also graph of:
 
 wait time v incidence for all of Scotland and for borders - how does borders perform (resilience)
+
+
+
+
 
 

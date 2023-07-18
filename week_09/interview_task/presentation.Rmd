@@ -19,8 +19,13 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## Slide with R Output
 
+Top cancers in females (all health boards)
 ```{r cars, echo = TRUE}
-summary(cars)
+comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Females" & cancer_site != "All cancer types") %>%
+  summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
+  arrange(desc(mean_easr)) %>% 
+  slice_max(mean_easr, n = 10) 
 ```
 
 ## Slide with Plot
