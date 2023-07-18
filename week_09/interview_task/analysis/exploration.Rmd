@@ -1,0 +1,10 @@
+---
+title: "data exploration"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+```
+
