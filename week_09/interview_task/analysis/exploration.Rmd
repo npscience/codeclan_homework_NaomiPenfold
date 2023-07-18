@@ -6,5 +6,157 @@ output: html_notebook
 ```{r}
 library(tidyverse)
 library(janitor)
+library(lubridate)
 ```
+# What's in data
+
+## Geography codes
+
+How to filter for Borders
+
+```{r}
+geography_codes <- read_csv("../data/raw_data/geography_codes_and_labels_hb2014_01042019.csv") %>% 
+  clean_names()
+```
+```{r}
+hb_borders <- geography_codes %>% 
+  filter(hb_name == "NHS Borders") %>% 
+  pull(hb)
+
+hb_borders
+```
+
+HB code 16 - use pulled value as variable.
+
+## Understand incidence data
+
+```{r}
+# 1997 - 2021 annual data
+incidence_hb <- read_csv("../data/raw_data/incidence_1997_2021_hb.csv") %>% 
+  clean_names()
+
+incidence_scot <- read_csv("../data/raw_data/incidence_1997_2021_scotland.csv") %>% 
+  clean_names()
+
+incidence_network <- read_csv("../data/raw_data/incidence_1997_2021_region.csv") %>% 
+  clean_names()
+
+# 2017 - 2021 combined 5-yr data
+comb_5yr_incidence_hb <- read_csv("../data/raw_data/incidence_5yr_comb_hb.csv") %>% 
+  clean_names()
+
+comb_5yr_incidence_scot <- read_csv("../data/raw_data/incidence_5yr_comb_scotland.csv") %>% 
+  clean_names()
+
+comb_5yr_incidence_network <- read_csv("../data/raw_data/incidence_5yr_comb_region.csv") %>% 
+  clean_names()
+```
+
+### understand regions
+
+```{r}
+incidence_network %>% 
+  distinct(region)
+```
+
+What are the networks? See https://www.nss.nhs.scot/specialist-healthcare/national-networks/what-are-national-networks/cancer-networks/
+
+Which hbs are in which network? Which network contains Borders hb? 
+
+* Not in west: https://www.woscan.scot.nhs.uk/
+* In South East (SCAN): "SCAN brings together cancer professionals from four NHS Boards: NHS Borders, Dumfries & Galloway, Fife and NHS Lothian, which hosts the Cancer Centre to work together.  The aim is to ensure equitable provision of high quality, clinically effective, patient-centred cancer services for a population of approximately 1.5m people." https://www.scan.scot.nhs.uk/about-us/.
+
+What are their business needs?
+
+* Project has looked at modelling capacity and resource: https://www.scan.scot.nhs.uk/projects/regional-sact-capacity-modelling-tool/
+* performance / progress updates are via types of cancer specialties, eg 2017-2019 annual report https://www.scan.scot.nhs.uk/wp-content/uploads/2020/09/SCAN-Annual-Report-2017-2019-Final.pdf 
+
+
+### understand variables
+
+see indicators defined at https://www.isdscotland.org/Health-Topics/Cancer/FAQ/ 
+
+Incidence:
+
+    "Incidence is the total number of new cases (registrations) of the cancer diagnosed in Scotland for the given period."
+    
+Note different from prevalence:
+
+    "Cancer prevalence is a measure of the burden of cancer in a population at a particular point in time. One-year prevalence is the number of patients diagnosed in the previous year who are still alive; 20-year prevalence is the number of patients diagnosed in the previous 20 years who are still alive."
+    
+
+## epxlore other datasets (if time)
+
+from https://beta.isdscotland.org/find-publications-and-data/conditions-and-diseases/cancer/:
+
+* early detection
+* cancer wait times: https://publichealthscotland.scot/publications/cancer-waiting-times/cancer-waiting-times-1-january-to-31-march-2023/ -- website summary report says not meeting standards (overall, including in Borders). Standards: 31 and 62 day wait times, data avail for both from https://www.opendata.nhs.scot/dataset/cancer-waiting-times.
+
+### wait times
+
+Consider looking at incidence v wait time trends to understand how we expect incidence trends to affect wait times (e.g. if expect increased incidence, what does wait time look like when high incidence)
+
+```{r}
+wait_31days <- read_csv("../data/raw_data/cwt_31_day_standard.csv") %>% 
+  clean_names()
+
+wait_62days <- read_csv("../data/raw_data/cwt_31_day_standard.csv") %>% 
+  clean_names()
+```
+
+```{r}
+# check if possible to filter for borders and compare to incidence (annual)
+wait_31days_borders_allcancers <- wait_31days %>% 
+  filter(hb == hb_borders,
+         cancer_type == "All Cancer Types") %>% 
+  mutate(quarter = zoo::as.yearqtr(quarter)) %>% 
+  mutate(year = year(quarter), .before = quarter) 
+# 141 rows
+
+# check qualifiers / quality
+wait_31days_borders_allcancers %>% 
+  summarise(across(.cols = everything(),
+                   .fns = ~ sum(is.na(.x))))
+# 96 NAs in hbtqf
+wait_31days_borders_allcancers %>% 
+  filter(is.na(hbtqf))
+# note hb = borders; hbt = different hb (hb for treatment??)
+
+# check non_NA qfs for the two measures
+wait_31days_borders_allcancers %>% 
+  filter(!is.na(number_of_eligible_referrals31day_standard_qf))
+# 3 with p, 2023 Q1
+
+wait_31days_borders_allcancers %>% 
+  filter(!is.na(number_of_eligible_referrals_treated_within31days_qf))
+# same 3 with p, 2023 Q1
+```
+
+Not sure what "p" stands for. Can't find data dictionary on https://www.isdscotland.org/Health-Topics/Waiting-Times/Cancer/Data-Quality/ 
+
+note: decide whether to filter for hb or hbt
+
+more about cancer data: https://www.isdscotland.org/Health-Topics/Waiting-Times/Cancer/Background/ 
+
+``` {r}
+wait_31days_borders_allcancers %>% 
+  group_by(year) %>% 
+  summarise(total_number_of_eligible_referrals31day_standard = sum(number_of_eligible_referrals31day_standard),
+            total_number_of_eligible_referrals_treated_within31days = sum(number_of_eligible_referrals_treated_within31days),
+            perc_prop_treated_within31d = 100*(total_number_of_eligible_referrals_treated_within31days/total_number_of_eligible_referrals31day_standard)) %>% 
+  ggplot() +
+  aes(x = year, y = perc_prop_treated_within31d) +
+  geom_line() +
+  scale_y_continuous(limits = c(0, 100))
+```
+
+could make graph of :
+
+* borders v region v national
+* 31d %, 62d %
+
+also graph of:
+
+wait time v incidence for all of Scotland and for borders - how does borders perform (resilience)
+
 

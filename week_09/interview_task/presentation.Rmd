@@ -1,0 +1,31 @@
+---
+title: "Cancer incidence in NHS Borders"
+output: ioslides_presentation
+date: "2023-07-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Introduction
+
+- "Incidence is the total number of **new cases** (registrations) of the cancer diagnosed in Scotland for the given period." (https://www.isdscotland.org/Health-Topics/Cancer/FAQ/) - not the same as number of people living with cancer (prevalence).
+- For planning, important to understand whether we can predict incidence as this will represent number of new patients seeking diagnosis, treatment and care. Need to plan capacity and resources for this.
+- Today, looking at < indicators >
+  - hb v network (SCAN), v Scotland
+  - who's affected
+
+## Slide with R Output
+
+```{r cars, echo = TRUE}
+summary(cars)
+```
+
+## Slide with Plot
+
+```{r pressure}
+plot(pressure)
+```
+
