@@ -25,12 +25,23 @@ hb_borders <- geography_codes %>%
   pull(hb)
 ```
 
+## Introduction
+
+* Incidence is the registration of new cases of cancer, and so is an indicator of incoming patients looking for treatment. It is not an indicator of the number of clients surviving with cancer over the long-term (for that, use prevalence).
+* NHS Borders sits within the South East regional network (SCAN) alongside NHS Dumfries & Galloway, NHS Fife and NHS Lothian (where the Cancer Centre for this region is hosted). Overall, this network provides services to ~1.5 million people.
+
+To better understand incidence of cancer in NHS Borders, I have analysed:
+
+* In recent years, which types of cancer have been diagnosed in people resident in NHS Borders? For whom do they present (sex and age)?
+* For the type of cancer with the highest rates, how does the incidence rate in NHS Borders compare to the region and to Scotland as a whole? What is the trend over time?
+
+This analyses uses open data about [annual cancer incidence](https://www.opendata.nhs.scot/dataset/annual-cancer-incidence) (last updated 29 March 2023) available from Public Health Scotland, which contains public sector information licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/) - but does not contain identifiable information. Of note, it is not possible to examine incidence rate of multiple cancers in individual patients.
 
 ## Cancer types for males and females in NHS Borders
 
 Some cancers are sex-specific, so I have analysed incidence of cancer sites separately for males and females.
 
-```{r data_prep, echo = FALSE, message = FALSE, warning = FALSE}
+```{r sexes data_prep, echo = FALSE, message = FALSE, warning = FALSE}
 # 2017 - 2021 combined 5-yr data
 comb_5yr_incidence_hb <- read_csv("../data/raw_data/incidence_5yr_comb_hb.csv") %>% 
   clean_names()
@@ -53,19 +64,30 @@ comb_5_hb_inc_rate_age <- comb_5yr_incidence_hb %>%
     age_bracket %in% c("65to69", "70to74", "75to79", "80to84", "85andover"), 
     "65 and over", "Under 65"))
 
-# prepare data tables for females plots
+# prepare data tables for females plots ----
+# calculate prop new cases (incidences) that are top 10 in females
 top_cancers_borders_females_means <- comb_5_hb_inc_rate_age %>% 
   filter(hb == hb_borders &
          sex == "Females" & 
            cancer_site != "All cancer types") %>%
   summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
   arrange(desc(mean_easr)) %>% 
-  slice_max(mean_easr, n = 10)
+  slice_max(mean_easr, n = 10) 
 
 top_cancers_borders_females <- top_cancers_borders_females_means %>% 
   pull(cancer_site)
 
-# prepare data tables for males plots
+female_incidence_prop <- comb_5yr_incidence_hb %>% 
+  filter(sex == "Females" & hb == hb_borders) %>% # total all cancer types 4156
+  select(cancer_site, incidences_all_ages) %>% 
+  arrange(desc(incidences_all_ages)) %>% 
+  mutate(prop_incidences = 100*(incidences_all_ages / sum(incidences_all_ages[1]))) %>%
+  filter(cancer_site %in% c(top_cancers_borders_females)) %>% 
+  mutate(prop_incidences = as.character(str_c(round(prop_incidences,1), " %")))
+
+top_cancers_borders_females_means <- left_join(top_cancers_borders_females_means, female_incidence_prop)
+
+# prepare data tables for males plots ----
 top_cancers_borders_males_means <- comb_5_hb_inc_rate_age %>% 
   filter(hb == hb_borders &
          sex == "Male" & 
@@ -77,52 +99,165 @@ top_cancers_borders_males_means <- comb_5_hb_inc_rate_age %>%
   
 top_cancers_borders_males <- top_cancers_borders_males_means %>%
   pull(cancer_site)
-```
 
-
-For females in NHS Borders, the 10 cancer sites with the highest incidence include breast, cervical and uterine cancers, as well as skin cancers, lung cancer and intestinal cancers. Half of all cancers in females in NHS Borders in the past 5 years (2017-2021) were skin or breast cancer: 44% were skin cancers and 8% were breast cancer.
-
-```{r, echo = FALSE, message = FALSE, warning = FALSE}
-# calculate prop new cases (incidences) that are top 10 in females
-comb_5yr_incidence_hb %>% 
-  filter(sex == "All" &
-           hb == hb_borders &
-           cancer_site != "All cancer types") %>% # total all cancer types 4156
+male_incidence_prop <- comb_5yr_incidence_hb %>% 
+  filter(sex == "Male" & hb == hb_borders) %>% # total all cancer types 4156
   select(cancer_site, incidences_all_ages) %>% 
   arrange(desc(incidences_all_ages)) %>% 
-  mutate(prop_incidences = 100*(incidences_all_ages / sum(incidences_all_ages))) %>% 
-  # sum of individual types 7438
-  filter(cancer_site %in% c("Breast", "Non-melanoma skin cancer", "Basal cell carcinoma of the skin", "Squamous cell carcinoma of the skin", "Malignant melanoma of the skin")) %>% 
-  mutate(cancer_site = if_else(cancer_site == "Breast", cancer_site, "Skin cancers")) %>% 
-  summarise(sum_prop_incidences = sum(prop_incidences), .by = cancer_site)
+  mutate(prop_incidences = 100*(incidences_all_ages / sum(incidences_all_ages[1]))) %>%
+  filter(cancer_site %in% c(top_cancers_borders_males)) %>% 
+  mutate(prop_incidences = as.character(str_c(round(prop_incidences,1), " %")))
+
+top_cancers_borders_males_means <- left_join(top_cancers_borders_males_means, male_incidence_prop)
 ```
+
 
 ```{r echo = FALSE}
 # plot top 10 cancers by mean_easr in females in NHS borders
 top_cancers_borders_females_means %>% 
-  ggplot() +
-  geom_col(aes(x = mean_easr, y = reorder(cancer_site, mean_easr)))
+  ggplot(aes(x = mean_easr, y = reorder(cancer_site, mean_easr), 
+             label = prop_incidences)) +
+  geom_col(fill = "darkblue") +
+  geom_text(nudge_x = -13, colour = "white") +
+  labs(x = "Mean EASR (European age-standardised
+       incidence rate per 100,000 people at risk)",
+       y = "Cancer site",
+       title = "Cancers with highest incidence rates",
+       subtitle = "In females in NHS Borders",
+       caption = "Labelled with % total incidences in NHS Borders") +
+  theme_classic() +
+  theme(plot.caption.position = "plot")
 ```
 
+For females in NHS Borders, the 10 cancer sites with the highest incidence include breast, cervical and uterine cancers, as well as skin cancers*, lung cancer and intestinal cancers. 
+
+The highest occuring new (diagnosed) cancers in females in NHS Borders in the past 5 years (2017-2021) were breast (38%) and non-melanoma skin cancers (27%).
+
+*Note that basal cell and squamous cell carcinomas are both types of non-melanoma skin cancers.
 
 ```{r echo = FALSE}
 # plot top 10 cancers incidence rate by age in females in NHS borders
 comb_5_hb_inc_rate_age %>% 
   filter(sex == "Females" & cancer_site %in% top_cancers_borders_females) %>% 
-  mutate(cancer_site = factor(cancer_site, levels = c(
-    "Breast", "Non-melanoma skin cancer", "Basal cell carcinoma of the skin",
-    "Trachea, bronchus and lung", "Colorectal cancer", 
-    "Carcinoma in situ of the cervix uteri", "Colon", 
-    "Squamous cell carcinoma of the skin", "Uterus", "Malignant melanoma of the skin"
-  ))) %>% 
+  mutate(cancer_site = factor(cancer_site, levels = top_cancers_borders_females)) %>% 
   ggplot(aes(age_bracket, fct_rev(cancer_site), fill = incidence_rate)) +
   geom_tile() +
   scale_fill_viridis_c() +
-  labs(x = "Age bracket", y = "Cancer site", fill = "Incidence rate") +
+  labs(x = "Age bracket", y = "Cancer site", fill = "Incidence rate",
+       title = "Age profile of incidence for top 10 cancers",
+       subtitle = "In females in NHS Borders") +
   theme(axis.text.y = element_text(size = 8),
         legend.text = element_text(size = 8),
         axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
         axis.title = element_text(size = 14),
         legend.position = "bottom")
 ```
+
+When looking at what age these cancers are presenting (here, looking at incidence rate for the top 10 by mean EASR in 2017-2021), we can see that new cases rise with age for most sites of cancer, with a peak in breast cancer around the late 50s, and with non-melanom skin cancer rates highest in the oldest age groups. However there is also this peak in cervical cancer in 25-40 year olds, so it is important to keep up cervical screening programmes for young adult women.
+
+```{r echo = FALSE}
+# plot top 10 cancers by mean_easr in males in NHS borders
+top_cancers_borders_males_means %>% 
+  ggplot(aes(x = mean_easr, y = reorder(cancer_site, mean_easr), 
+             label = prop_incidences)) +
+  geom_col(fill = "darkblue") +
+  geom_text(nudge_x = 25, colour = "black") +
+  labs(x = "Mean EASR (European age-standardised
+       incidence rate per 100,000 people at risk)",
+       y = "Cancer site",
+       title = "Age profile of incidence for cancers with highest incidence rates",
+       subtitle = "In males in NHS Borders",
+       caption = "Labelled with % total incidences in NHS Borders") +
+  theme_classic() +
+  theme(plot.caption.position = "plot")
+```
+
+In males, skin cancers also feature amongst the highest incidence in NHS Borders, as well as prostate cancer, intestinal cancers and lung cancer. In 2017-2021, 47% of cancers in males were non-melanoma skin cancers, and 26% were prostate cancer.
+
+```{r echo = FALSE}
+# plot top 10 cancers incidence rate by age in males in NHS borders
+comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Male" & cancer_site %in% top_cancers_borders_males) %>% 
+  mutate(cancer_site = factor(cancer_site, levels = top_cancers_borders_males
+  )) %>% 
+  ggplot(aes(age_bracket, fct_rev(cancer_site), fill = incidence_rate)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(x = "Age bracket", y = "Cancer site", fill = "Incidence rate",
+       title = "Age profile of incidence for top 10 cancers",
+       subtitle = "In males in NHS Borders") +
+  theme(axis.text.y = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+        axis.title = element_text(size = 14),
+        legend.position = "bottom")
+```
+
+All of these cancers are presenting in older age groups, the data suggests that screening for these cancers will be important from around the age of 60-65 years.
+
+```{r timescale data_prep, echo = FALSE, message = FALSE, warning = FALSE}
+# prep data for timescale graph
+# 1997 - 2021 annual data
+incidence_hb <- read_csv("../data/raw_data/incidence_1997_2021_hb.csv") %>% 
+  clean_names()
+
+incidence_scot <- read_csv("../data/raw_data/incidence_1997_2021_scotland.csv") %>% 
+  clean_names()
+
+incidence_network <- read_csv("../data/raw_data/incidence_1997_2021_region.csv") %>% 
+  clean_names()
+
+# filter for desired data
+incidence_hb_easr <- incidence_hb %>% 
+  filter(hb == hb_borders) %>% 
+  select(cancer_site, sex, year, easr, easr_lower95pc_confidence_interval, easr_upper95pc_confidence_interval) %>% 
+  mutate(region = "NHS Borders", .before = year)
+
+incidence_network_easr <- incidence_network %>% 
+  filter(region == "South East of Scotland") %>% 
+  select(cancer_site, sex, year, easr, easr_lower95pc_confidence_interval, easr_upper95pc_confidence_interval) %>% 
+  mutate(region = "South East of Scotland", .before = year)
+
+incidence_scot_easr <- incidence_scot %>% 
+  select(cancer_site, sex, year, easr, easr_lower95pc_confidence_interval, easr_upper95pc_confidence_interval) %>% 
+  mutate(region = "Scotland", .before = year)
+
+incidence_easr <- bind_rows(incidence_hb_easr, incidence_network_easr,
+                            incidence_scot_easr)
+```
+
+```{r time series plot}
+incidence_easr %>% 
+  filter(year >= 2013 &
+           sex == "All" &
+        cancer_site == "Non-melanoma skin cancer") %>% 
+  ggplot(aes(x = year, y = easr, colour = region)) +
+  geom_line() +
+  geom_point() +
+  scale_colour_manual(values = c("darkblue", "violet", "goldenrod2")) +
+  geom_ribbon(aes(ymin = easr_lower95pc_confidence_interval,
+                  ymax = easr_upper95pc_confidence_interval,
+                  colour = region), alpha=0.1) +
+  scale_y_continuous(limits = c(0, 350)) +
+  labs(y = "EASR (European age-standardised incidence rate
+       per 100,000 people at risk) +- 95% CI\n",
+       x = "\nYear",
+       title = "Incidence in all sexes and all ages") +
+  theme_classic() +
+  theme(legend.position = "bottom",
+        axis.title.y = element_text(size = 10)) +
+  facet_wrap(~ cancer_site)
+```
+
+As noted above, non-melanoma skin cancer is of high incidence in both male and females. Comparing NHS Borders with the South East region and Scotland in general for all ages, we can see that the overall trend is approximately the same as the regional network and national rates, with no obvious increase/decrease over time. 
+
+It is worth noting that incidence in NHS Borders is more variable than the regional and national averages, and also that the SCAN Network (which includes the Borders) looks to have a consistently higher incidence rate of this type of skin cancer than Scotland overall - and so the network should consider ensuring there is adequate provision for treatment of this cancer, particularly in older age groups (both males and females)
+
+## Conclusions
+
+Based on the available data, I recommend:
+
+* Screening **males and females over 60 years of age for non-melanoma skin cancers (BCC and SCC)**, which were the most frequently occurring new registrations of cancer in 2017-2021 in NHS Borders. These cancers may occur more frequently in the South East network than in Scotland overall, so there may be a targeted plan of action for SCAN that NHS Borders services can leverage. It would also be beneficial to increase education about how to protect ourselves from UV exposure, which is the main cause of these cancers ([NHS UK](https://www.nhs.uk/conditions/non-melanoma-skin-cancer/)).
+* Screening **women aged 50+ for breast cancer**,  **women aged 25-40 years for cervical cancer**, and **men aged 55+ for prostate cancer**.
+* To further inform planning of services, consider analysing current [cancer treatment wait times](https://www.opendata.nhs.scot/dataset/cancer-waiting-times), especially for non-melanoma skin, breast and prostate cancers.
 
