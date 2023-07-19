@@ -1,19 +1,23 @@
 ---
 title: "Cancer incidence in NHS Borders"
-output: ioslides_presentation
-date: "2023-07-18"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    css: ../../../../styles.css
+    code_folding: hide
+  pdf_document: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+```{r setup, echo = FALSE, message = FALSE, warning = FALSE}
 library(tidyverse)
 library(janitor)
 library(lubridate)
 ```
 
-```{r border_code, include = FALSE}
+```{r border_code, echo = FALSE, message = FALSE, warning = FALSE}
 # assign hb_borders hb code to variable
-geography_codes <- read_csv("data/raw_data/geography_codes_and_labels_hb2014_01042019.csv") %>% 
+geography_codes <- read_csv("../data/raw_data/geography_codes_and_labels_hb2014_01042019.csv") %>% 
   clean_names()
 
 hb_borders <- geography_codes %>% 
@@ -21,9 +25,14 @@ hb_borders <- geography_codes %>%
   pull(hb)
 ```
 
-```{r data_prep, include = FALSE}
+
+## Cancer types for males and females in NHS Borders
+
+Some cancers are sex-specific, so I have analysed incidence of cancer sites separately for males and females.
+
+```{r data_prep, echo = FALSE, message = FALSE, warning = FALSE}
 # 2017 - 2021 combined 5-yr data
-comb_5yr_incidence_hb <- read_csv("data/raw_data/incidence_5yr_comb_hb.csv") %>% 
+comb_5yr_incidence_hb <- read_csv("../data/raw_data/incidence_5yr_comb_hb.csv") %>% 
   clean_names()
 
 # prepare data for incidence by cancer type and age
@@ -66,18 +75,39 @@ top_cancers_borders_males_means <- comb_5_hb_inc_rate_age %>%
   slice_max(mean_easr, n = 10) %>% 
   mutate(cancer_site = factor(cancer_site, levels = (cancer_site)[order(cancer_site)]))
   
-
 top_cancers_borders_males <- top_cancers_borders_males_means %>%
   pull(cancer_site)
 ```
 
-```{r}
-# make plots
-females_easr_cancers_geom_col <- top_cancers_borders_females_means %>% 
+
+For females in NHS Borders, the 10 cancer sites with the highest incidence include breast, cervical and uterine cancers, as well as skin cancers, lung cancer and intestinal cancers. Half of all cancers in females in NHS Borders in the past 5 years (2017-2021) were skin or breast cancer: 44% were skin cancers and 8% were breast cancer.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+# calculate prop new cases (incidences) that are top 10 in females
+comb_5yr_incidence_hb %>% 
+  filter(sex == "All" &
+           hb == hb_borders &
+           cancer_site != "All cancer types") %>% # total all cancer types 4156
+  select(cancer_site, incidences_all_ages) %>% 
+  arrange(desc(incidences_all_ages)) %>% 
+  mutate(prop_incidences = 100*(incidences_all_ages / sum(incidences_all_ages))) %>% 
+  # sum of individual types 7438
+  filter(cancer_site %in% c("Breast", "Non-melanoma skin cancer", "Basal cell carcinoma of the skin", "Squamous cell carcinoma of the skin", "Malignant melanoma of the skin")) %>% 
+  mutate(cancer_site = if_else(cancer_site == "Breast", cancer_site, "Skin cancers")) %>% 
+  summarise(sum_prop_incidences = sum(prop_incidences), .by = cancer_site)
+```
+
+```{r echo = FALSE}
+# plot top 10 cancers by mean_easr in females in NHS borders
+top_cancers_borders_females_means %>% 
   ggplot() +
   geom_col(aes(x = mean_easr, y = reorder(cancer_site, mean_easr)))
+```
 
-females_age_cancers_heatmap <- comb_5_hb_inc_rate_age %>% 
+
+```{r echo = FALSE}
+# plot top 10 cancers incidence rate by age in females in NHS borders
+comb_5_hb_inc_rate_age %>% 
   filter(sex == "Females" & cancer_site %in% top_cancers_borders_females) %>% 
   mutate(cancer_site = factor(cancer_site, levels = c(
     "Breast", "Non-melanoma skin cancer", "Basal cell carcinoma of the skin",
@@ -94,28 +124,5 @@ females_age_cancers_heatmap <- comb_5_hb_inc_rate_age %>%
         axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
         axis.title = element_text(size = 14),
         legend.position = "bottom")
-```
-
-
-## Introduction
-
-- "Incidence is the total number of **new cases** (registrations) of the cancer diagnosed in Scotland for the given period." (https://www.isdscotland.org/Health-Topics/Cancer/FAQ/) - not the same as number of people living with cancer (prevalence).
-- For planning, important to understand whether we can predict incidence as this will represent number of new patients seeking diagnosis, treatment and care. Need to plan capacity and resources for this.
-- Today, looking at < indicators >
-  - hb v network (SCAN), v Scotland
-  - who's affected
-
-## Most incident cancers in females in NHS Borders {.flexbox}
-
-```{r, echo = TRUE}
-plot(females_easr_cancers_geom_col)
-
-plot(females_age_cancers_heatmap)
-```
-
-## Slide with Plot
-
-```{r pressure}
-plot(pressure)
 ```
 

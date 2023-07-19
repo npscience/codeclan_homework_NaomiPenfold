@@ -336,6 +336,108 @@ comb_5_hb_inc_rate_age %>%
   scale_fill_viridis_c()
 ```
 
+#### cancer type by age for top ones in borders
+
+```{r}
+# top cancers females in borders
+top_cancers_borders_females_means <- comb_5_hb_inc_rate_age %>% 
+  filter(hb == hb_borders &
+         sex == "Females" & 
+           cancer_site != "All cancer types") %>%
+  summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
+  arrange(desc(mean_easr)) %>% 
+  slice_max(mean_easr, n = 10)
+
+top_cancers_borders_females <- top_cancers_borders_females_means %>% 
+  pull(cancer_site)
+
+# top cancers males in borders
+top_cancers_borders_males_means <- comb_5_hb_inc_rate_age %>% 
+  filter(hb == hb_borders &
+         sex == "Male" & 
+           cancer_site != "All cancer types") %>%
+  summarise(mean_easr = mean(easr, na.rm=TRUE), .by = cancer_site) %>% 
+  arrange(desc(mean_easr)) %>%
+  slice_max(mean_easr, n = 10) %>% 
+  mutate(cancer_site = factor(cancer_site, levels = (cancer_site)[order(cancer_site)]))
+  
+
+top_cancers_borders_males <- top_cancers_borders_males_means %>%
+  pull(cancer_site)
+```
+
+Or use incidences in "All ages" to find top 10 by number of incidences alone
+
+```{r}
+top_cancers_borders_females_inc <- comb_5_hb_inc_rate_age %>% 
+  filter(hb == hb_borders &
+         sex == "Females" & 
+           cancer_site != "All cancer types") %>%
+  summarise(incidences = max(incidences_all_ages), .by = cancer_site) %>% 
+  arrange(desc(incidences)) %>% 
+  slice_max(incidences, n = 10)
+
+top_cancers_borders_females_inc_list <- top_cancers_borders_females_inc %>% 
+  pull(cancer_site)
+```
+
+
+```{r female_heatmap}
+top_cancers_borders_females_means %>% 
+  ggplot() +
+  geom_col(aes(x = mean_easr, y = reorder(cancer_site, mean_easr)))
+
+comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Females" & cancer_site %in% top_cancers_borders_females) %>% 
+  mutate(cancer_site = factor(cancer_site, levels = c(
+    "Breast", "Non-melanoma skin cancer", "Basal cell carcinoma of the skin",
+    "Trachea, bronchus and lung", "Colorectal cancer", 
+    "Carcinoma in situ of the cervix uteri", "Colon", 
+    "Squamous cell carcinoma of the skin", "Uterus", "Malignant melanoma of the skin"
+  ))) %>% 
+  ggplot(aes(age_bracket, fct_rev(cancer_site), fill = incidence_rate)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(x = "Age bracket", y = "Cancer site", fill = "Incidence rate") +
+  theme(axis.text.y = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+        axis.title = element_text(size = 14),
+        legend.position = "bottom")
+
+ggsave("tile_female_borders_inc_by_cancer_age.png", width = 15, height = 10, units = "cm")
+```
+
+Try with top 10 by total incidences (not mean easr)
+
+```{r}
+top_cancers_borders_females_inc %>% 
+  ggplot() +
+  geom_col(aes(x = incidences, y = reorder(cancer_site, incidences)))
+
+comb_5_hb_inc_rate_age %>% 
+  filter(sex == "Females" & cancer_site %in% top_cancers_borders_females_inc_list) %>% 
+  mutate(cancer_site = factor(cancer_site, levels = c(
+    "Breast", "Non-melanoma skin cancer", 
+    "Basal cell carcinoma of the skin",
+    "Trachea, bronchus and lung", "Colorectal cancer", 
+    "Colon", "Carcinoma in situ of the cervix uteri",  
+    "Squamous cell carcinoma of the skin", "Uterus", 
+    "Malignant melanoma of the skin")
+  )) %>% 
+  ggplot(aes(age_bracket, fct_rev(cancer_site), fill = incidence_rate)) +
+  geom_tile() +
+  scale_fill_viridis_c() +
+  labs(x = "Age bracket", y = "Cancer site", fill = "Incidence rate") +
+  theme(axis.text.y = element_text(size = 8),
+        legend.text = element_text(size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 7),
+        axis.title = element_text(size = 14),
+        legend.position = "bottom")
+
+ggsave("tile_female_borders_inc_by_cancer_age.png", width = 15, height = 10, units = "cm")
+```
+
 
 ```{r}
 # first calculate prop incidences / total for 65 and over
