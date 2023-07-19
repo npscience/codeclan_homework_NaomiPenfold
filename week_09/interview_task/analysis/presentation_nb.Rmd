@@ -37,7 +37,7 @@ To better understand incidence of cancer in NHS Borders, I have analysed:
 
 This analyses uses open data about [annual cancer incidence](https://www.opendata.nhs.scot/dataset/annual-cancer-incidence) (last updated 29 March 2023) available from Public Health Scotland, which contains public sector information licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/) - but does not contain identifiable information. Of note, it is not possible to examine incidence rate of multiple cancers in individual patients.
 
-## Cancer types for males and females in NHS Borders
+## Cancer types for females in NHS Borders
 
 Some cancers are sex-specific, so I have analysed incidence of cancer sites separately for males and females.
 
@@ -155,6 +155,8 @@ comb_5_hb_inc_rate_age %>%
 
 When looking at what age these cancers are presenting (here, looking at incidence rate for the top 10 by mean EASR in 2017-2021), we can see that new cases rise with age for most sites of cancer, with a peak in breast cancer around the late 50s, and with non-melanom skin cancer rates highest in the oldest age groups. However there is also this peak in cervical cancer in 25-40 year olds, so it is important to keep up cervical screening programmes for young adult women.
 
+## Cancer types for males in NHS Borders
+
 ```{r echo = FALSE}
 # plot top 10 cancers by mean_easr in males in NHS borders
 top_cancers_borders_males_means %>% 
@@ -194,6 +196,8 @@ comb_5_hb_inc_rate_age %>%
 ```
 
 All of these cancers are presenting in older age groups, the data suggests that screening for these cancers will be important from around the age of 60-65 years.
+
+## Non-melanoma skin cancer trends
 
 ```{r timescale data_prep, echo = FALSE, message = FALSE, warning = FALSE}
 # prep data for timescale graph
