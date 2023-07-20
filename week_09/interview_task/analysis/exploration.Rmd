@@ -536,7 +536,38 @@ also graph of:
 wait time v incidence for all of Scotland and for borders - how does borders perform (resilience)
 
 
+## check quality of dfs used
 
+```{r, eval = FALSE}
+# used the following dfs
+# (loaded to env by running presentation_nb.Rmd)
+incidence_network # easr and CIs, sex, cancer_site, year > 2011
+incidence_scot
+incidence_hb
+comb_5yr_incidence_hb # easr (check for NAs, mean(na.rm=TRUE), incidence rate by age brackets, cancer_site, sex
+```
 
+```{r}
+comb_5yr_incidence_hb %>%
+  filter(is.na(easr)) # 0 NAs
+# used mean(easr), no NAs so no worries about this
+# (not checked for normal distribution of easr though)
+
+incidence_hb %>%
+  filter(hb == hb_borders) %>% # 3400 rows
+  filter(!is.na(easr_lower95pc_confidence_interval_qf) | !is.na(easr_upper95pc_confidence_interval_qf)) %>% # 2,507 NAs in CIs
+  distinct(cancer_site, sex) 
+
+incidence_network %>%
+  filter(region == "South East of Scotland") %>% # 3400 rows
+  filter(!is.na(easr_lower95pc_confidence_interval_qf) | !is.na(easr_upper95pc_confidence_interval_qf)) %>% # 554 NAs in CIs
+  distinct(cancer_site, sex) 
+
+incidence_scot %>% # 3400 rows
+  filter(!is.na(easr_lower95pc_confidence_interval_qf) | !is.na(easr_upper95pc_confidence_interval_qf)) %>% # 87 NAs in CIs
+  distinct(cancer_site, sex) 
+```
+
+These NAs in CIs are for diff types of cancers ~ sexes. Non are for non-melanoma skin cancer, which is what I've used these CIs to plot in presentation.
 
 
