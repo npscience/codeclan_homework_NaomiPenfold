@@ -232,7 +232,7 @@ incidence_easr <- bind_rows(incidence_hb_easr, incidence_network_easr,
 
 ```{r time series plot}
 incidence_easr %>% 
-  filter(year >= 2013 &
+  filter(year >= 2011 &
            sex == "All" &
         cancer_site == "Non-melanoma skin cancer") %>% 
   ggplot(aes(x = year, y = easr, colour = region)) +
@@ -243,6 +243,7 @@ incidence_easr %>%
                   ymax = easr_upper95pc_confidence_interval,
                   colour = region), alpha=0.1) +
   scale_y_continuous(limits = c(0, 350)) +
+  scale_x_continuous(breaks = c(2011, 2013, 2015, 2017, 2019, 2021, 2023)) +
   labs(y = "EASR (European age-standardised incidence rate
        per 100,000 people at risk) +- 95% CI\n",
        x = "\nYear",
@@ -259,9 +260,12 @@ It is worth noting that incidence in NHS Borders is more variable than the regio
 
 ## Conclusions
 
-Based on the available data, I recommend:
+Based on the available data, I recommend considering planning to ensure sufficient:
 
-* Screening **males and females over 60 years of age for non-melanoma skin cancers (BCC and SCC)**, which were the most frequently occurring new registrations of cancer in 2017-2021 in NHS Borders. These cancers may occur more frequently in the South East network than in Scotland overall, so there may be a targeted plan of action for SCAN that NHS Borders services can leverage. It would also be beneficial to increase education about how to protect ourselves from UV exposure, which is the main cause of these cancers ([NHS UK](https://www.nhs.uk/conditions/non-melanoma-skin-cancer/)).
-* Screening **women aged 50+ for breast cancer**,  **women aged 25-40 years for cervical cancer**, and **men aged 55+ for prostate cancer**.
-* To further inform planning of services, consider analysing current [cancer treatment wait times](https://www.opendata.nhs.scot/dataset/cancer-waiting-times), especially for non-melanoma skin, breast and prostate cancers.
+* Screening for **males and females over 60 years of age for non-melanoma skin cancers (BCC and SCC)**, which were the most frequently occurring new registrations of cancer in 2017-2021 in NHS Borders. These cancers may occur more frequently in the South East network than in Scotland overall, so there may be a targeted plan of action for SCAN that NHS Borders services can leverage. It may also be beneficial to increase education about how to protect ourselves from UV exposure, which is the main cause of these cancers ([NHS UK](https://www.nhs.uk/conditions/non-melanoma-skin-cancer/)).
+* Screening for **women aged 50+ for breast cancer**,  **women aged 25-40 years for cervical cancer**, and **men aged 55+ for prostate cancer** (also high incidence rates).
+* To further inform planning of services, consider analysing:
+  * incidence, prevalence and service provision by **deprivation** (SIMD) and **race** to understand whether current services support equitable healthcare
+  * current [cancer treatment wait times](https://www.opendata.nhs.scot/dataset/cancer-waiting-times), especially for non-melanoma skin, breast and prostate cancers
+  * analyse cancer incidence for people aged under 75 to focus on cancers appearing earlier than expected than from ageing risk alone
 
