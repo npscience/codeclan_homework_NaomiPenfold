@@ -1,0 +1,176 @@
+---
+title: "wk10d1 - homework"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+```
+
+# MVP 
+
+```{r}
+project <- read_csv("data/project_management.csv")
+```
+
+```{r}
+glimpse(project)
+```
+```{r}
+# plot estimate v actual lengths
+project %>% 
+  ggplot() +
+  geom_point(aes(estimated_length, actual_length))
+```
+
+The estimates look to be binned, and contain a range of actual values per estimate.
+
+Overall, looks to be a positive correlation
+
+```{r}
+# calculate correlation coefficient
+project %>% 
+  summarise(corr = cor(estimated_length, actual_length)) 
+```
+
+With a Pearson coefficient of correlation of 0.80, we can say these variables are very strongly positively correlated.
+
+```{r}
+# generate a simple linear regression model
+# remember formula order = outcome ~ predictor
+model <- lm(formula = actual_length ~ estimated_length, data = project)
+```
+
+```{r}
+# plot the line of best fit from the model
+project_plot <- project %>% 
+  modelr::add_predictions(model) %>%
+  modelr::add_residuals(model) %>% 
+  ggplot(aes(x = estimated_length, y = actual_length)) +
+  geom_point() +
+  geom_line(aes(y = pred), col = "indianred")
+
+project_plot
+```
+
+
+```{r}
+model
+summary(model)
+broom::glance(model)
+```
+
+**What does the regression coefficient of our model tell us?**
+
+The model fits a best fit line where: actual_length = 1.2 * estimated_length + 1.4
+
+So the estimate is not quite 1:1 with the actual (that would be actual_length = estimated_length with slope = 1, intercept = 0), but the slope and intercept are quite small so it's also not far off (numerically) as an estimate.
+ 
+R^2 is 0.647 - this tells us that in our model, 65% of the variation in actual_length can be explained by the variation in estimated_length, so the model is a good fit (but there is room for improvement - and it would be better if the estimate itself was a better predictor of the actual length).
+
+**Is the relationship statistically significant?** 
+
+```{r}
+library(ggfortify)
+autoplot(model)
+```
+
+The diagnostic plots indicate that a linear model is a good choice - the Residuals v Fitted line is roughly horizontal and around 0, and most of the points map onto the QQ line - there's just one data point that is high at the highest x value, and this affects the line at the end (far right) for both top-row plots; and there may also be a deviating point at the lower quantile).
+
+With the linear model, the p-value of the regression coefficient is 1.911e-12, which is very small (p<0.00..001), which signifies that the relationship is highly statistically significant.
+
+# Extension
+
+## Leverage
+
+* high (magnitude) data points can influence the line of best fit model a lot more than lower magnitude values (e.g. changing a high value off to the top right in a scatter plot changes the line more than if a middle value were tweaked).
+* the residuals v leverage plot (from autoplot or base::plot, see below) helps us understand:
+  * 1.Heteroskedasticity and non-linearity: a change in noise level across the x axis. For homoskedasticity (no change in noise across the data range, which is what we want) "the spread of standardized residuals shouldn’t change as a function of leverage"
+  * 2. Whether any points are overly influential, using Cook's distance (the dotted line in the plot) - points outside Cook's distance are highly influential for the model, deleting them would change the model a lot. If these are outliers, we might want to remove them.
+  
+```{r}
+# label the data points in the model plot 
+# visually identify any potential outliers
+project_plot +
+  geom_text(aes(label = 1:nrow(project)), hjust = 1.5, vjust = 1.5, size = 2)
+```
+
+From this, I suspect **data point 5** is an influential outlier. **data point 18** looks a little low for the general trend, so may be an outlier, but it likely doesn't have high leverage (sits in the middle of values) so I would expect it is a non-influential outlier.
+
+
+```{r}
+plot(model)
+```
+
+Here, the spread of the values does not seem to differ across the majority of the range, so I think this tells us the data is homoskedastic (good!). However **data point 5 sits outside Cook's distance line**, and is pulling the leverage line upwards, indicating it may be a highly influential outlier and we may want to consider removing it (if this makes sense) to produce a better model for the other values.
+
+**Data point 18** is lower than the fitted line for leverage ~ residuals, has low leverage and is not outside Cook's distance, so it may be a non-influential outlier.
+
+## Remodel after removing non-influential outlier (18)
+
+```{r}
+# create a new df with removed row
+project_rm18 <- project %>% 
+  filter(row_number() != 18)
+
+# generate new model
+model_rm18 <- lm(formula = actual_length ~ estimated_length, data = project_rm18)
+
+# plot this
+project_rm18 %>% 
+  modelr::add_predictions(model_rm18) %>%
+  modelr::add_residuals(model_rm18) %>% 
+  ggplot(aes(x = estimated_length, y = actual_length)) +
+  geom_point() +
+  geom_line(aes(y = pred), col = "indianred")
+```
+
+The line of best fit still looks like it models the data trend well.
+
+```{r}
+model
+model_rm18
+summary(model_rm18)
+# broom::glance(model_rm18)
+```
+
+In the original model, the slope was 1.223 and intercept 1.416.
+
+In the model from the df dropping row 18, the regression coefficient (slope) = 1.221, and the intercept = 1.591.  Removing this row has not changed the model parameters much - so this supports the prediction that it is not an influential outlier.
+
+R^2 has changed to 0.68, so this model is now a slightly better fit (explains 68% variation rather than 65%) and the p-value is still very low so this is a significant relationship.
+
+
+## Remodel after removing influential outlier (5)
+
+```{r}
+project_rm5 <- project %>% 
+  filter(row_number() != 5)
+
+model_rm5 <- lm(formula = actual_length ~ estimated_length, data = project_rm5)
+
+# plot this
+project_rm5 %>% 
+  modelr::add_predictions(model_rm5) %>%
+  modelr::add_residuals(model_rm5) %>% 
+  ggplot(aes(x = estimated_length, y = actual_length)) +
+  geom_point() +
+  geom_line(aes(y = pred), col = "indianred")
+```
+
+Removing point 5 shortens our x-range, our fitted line still looks to fit the data
+
+
+```{r}
+model
+model_rm5
+summary(model_rm5)
+# broom::glance(model_rm5)
+```
+
+Removing data point 5 shifts the slope from 1.2 to 1.0, and shifts the intercept from 1.4 to 4.4, so has a larger affect on our model.
+
+R^2 has not changed (still 65%) so this model is just as good a fit as the original model,and the p-value is still very low so this is a significant relationship.
+
+Therefore, while this outlier seems to have been influential, it hasn't improved or worsened the goodness of fit of our model (from the residuals) but has changed (potentially improved) the function for explaining the relationship between estimated and actual length.
+
