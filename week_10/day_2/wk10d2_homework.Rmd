@@ -8,7 +8,7 @@ library(tidyverse)
 library(janitor)
 ```
 
-# 1
+# 1 load & explore data
 
 > Load the housing_prices.csv data set and undertake an initial exploration of the data. You will find details on the data set on the relevant [Kaggle page](https://www.kaggle.com/datasets/camnugent/california-housing-prices) 
 
@@ -30,7 +30,7 @@ housing_prices %>%
 
 Only var with missing values is total_bedrooms, 200 NAs out of the 19,675 observations. Tbc how to deal with these, if at all.
 
-# 2 
+# 2 check for explanatory vars that correlate
 
 > We expect the total_rooms of houses to be strongly correlated with total_bedrooms. Use ggpairs() to investigate correlations between these two variables.
 
@@ -44,7 +44,7 @@ housing_prices %>%
 
 They look strongly positively correlated, and corr = 0.934 so that indicates a very strong positive correlation. (And *** indicate this is statistically significant, i.e. we can reject the null hypothesis that total_bedrooms does not affect total_rooms; it is very unlikely this data is from a world where the null hypothesis is true.)
 
-# 3 
+# 3 trim data
 
 > drop total_bedrooms from the dataset, and use only total_rooms going forward
 
@@ -55,7 +55,9 @@ housing_prices <- housing_prices %>%
   select(-total_bedrooms)
 ```
 
-# 4
+total_bedrooms was the only var with missing values, so we also don't need to worry about these anymore.
+
+# 4 explore numeric predictors
 
 > We are interested in developing a regression model for the median_house_value of a house in terms of the possible predictor variables in the dataset.
 i. Use ggpairs() to investigate correlations between median_house_value and the predictors (this may take a while to run, don’t worry, make coffee or something).
@@ -72,17 +74,367 @@ From these, it looks like there are otherexplanatory variables that are strongly
 Taking these into account, and looking at the magnitude of the correlation coefficients that are significant (*s), I would consider including the following in a model, in order of steps:
 
 1. income
-2. location (lat, long)
-3. demand (something derived from pop, household, rooms)
+2. location (lat, long) - look at lat below
+3. demand (something derived from pop, household, rooms) - look at rooms below
+  - note: rooms is also an indicator of hoiuse size, could be useful on its own
 4. age
 
 > ii. Perform further ggplot visualisations of any significant correlations you find.
 
 ```{r}
+# income
 housing_prices %>% 
   ggplot(aes(x = median_income, y = median_house_value)) +
+  geom_point(fill = "grey60", size = 0.5) +
+  geom_smooth(method = lm)
+```
+
+```{r}
+cor(housing_prices$median_house_value, housing_prices$median_income)
+```
+
+**Interpret:** There is a strong positive correlation between median house value and median income of an area. 64% of variation in house value is explained by variation in income.
+
+This could be a useful explanatory variable.
+
+Note also there seems to be an upper limit in median_house_value, odd lack of values above 500,000.
+
+
+```{r}
+# latitude
+housing_prices %>% 
+  ggplot(aes(x = latitude, y = median_house_value)) +
   geom_point(fill = "grey60") +
   geom_smooth(method = lm)
 ```
 
+This is not a linear relationship - ther appear to be clusters where house price is more variable (higher peaks) - i.e. certain latitudes, I suspect these are where cities are.
 
+Do not use this as a variable on its own (consider using location though - maybe even encoding as different areas?)
+
+```{r}
+# total_rooms
+housing_prices %>% 
+  ggplot(aes(x = total_rooms, y = median_house_value)) +
+  geom_point(fill = "grey60") +
+  geom_smooth(method = lm)
+```
+
+This does not look homoeskedastic, lots of data points at lower total_rooms, but with high degree of spread of house values. Suggest total_rooms might need to be standardised by some factor?
+
+```{r}
+# median_age
+housing_prices %>% 
+  ggplot(aes(x = housing_median_age, y = median_house_value)) +
+  geom_point(fill = "grey60") +
+  geom_smooth(method = lm)
+```
+
+No obvious correlation here. Do not use in model.
+
+# 5 explore categorical predictor
+
+> Shortly we may try a regression model to fit the categorical predictor ocean_proximity. Investigate the level of ocean_proximity predictors. How many dummy variables do you expect to get from it?
+
+```{r}
+housing_prices %>% 
+  distinct(ocean_proximity)
+```
+
+There are 5 distinct categories in ocean_proximity, so expect to generate 4 dummy variables. **Set inland as the reference**, everything else gets more proximal to ocean.
+
+```{r}
+housing_prices_trim <- housing_prices %>% 
+  # set up dummy variables for ocean_proximity
+  fastDummies::dummy_cols(select_columns = "ocean_proximity",
+                          remove_selected_columns = TRUE) %>% 
+  janitor::clean_names() %>% 
+  # set inland as reference
+  select(-ocean_proximity_inland)
+```
+
+```{r}
+# check for any potential correlations
+housing_prices %>% 
+  ggplot(aes(x = ocean_proximity, y = median_house_value)) +
+  geom_boxplot()
+```
+
+House prices on island look higher than the rest, this may be a sensible predictor to use in a model.
+
+
+**Update:** from boxplot, actually looks like 3 categories that are similar: inland, island, and proximal to ocean (combining the 3 others) --> which would suggest 2 dummy variables (with inland set as reference).
+
+```{r}
+housing_prices %>% 
+  summarise(count = n(), .by = ocean_proximity)
+```
+
+~20,000 observations of which, 8,600 are <1h to ocean, 5 are on island, 2000 are near bay, 2446 are near ocean, rest are inland (~6,500).
+
+There are only 5 observations for island, so not enough data here to model this category, and also dragging up house prices - suggest dropping this category altogether for now.
+
+So let's use inland as reference, drop island observations, and combine the rest into a predictor "ocean_proximal":
+
+```{r}
+housing_prices_ocean <- housing_prices %>% 
+  filter(ocean_proximity != "ISLAND") %>% 
+  mutate(ocean_proximal = if_else(
+    ocean_proximity == "INLAND",
+    FALSE, TRUE)) %>% 
+  select(-ocean_proximity)
+
+head(housing_prices_ocean)
+```
+
+# 6 simple linear regression with income
+
+> Start with simple linear regression. Regress median_house_value on median_income and check the regression diagnostics.
+
+```{r}
+model_income <- lm(formula = median_house_value ~ median_income, housing_prices_trim)
+```
+
+```{r}
+# as above
+mosaic::plotModel(model_income)
+```
+
+```{r}
+library(ggfortify)
+autoplot(model_income)
+```
+
+Intrepret:
+
+* RvF plot has a big wedge shape, which suggests it is heterskedastic - we need to add another variable to explain the variation more consistently across x values and generate a good linear model here
+* QQ plot is not linear, the residuals are not normally distrubted, worse at the extremes, look negatively skewed (right skewed) in the histogram below
+* Scale-Location - looks to be some potential outliers, points 11331 and 1755.?. (cannot expand plot to see)
+* These points and another point (1565..?) have high leverage and look to be influencing in the RvL plot
+
+```{r}
+# inspect distribution of the residuals
+hist(model_income$residuals)
+```
+
+```{r}
+# inspect the high leverage / influencing points
+housing_prices_trim %>% 
+  ggplot(aes(x = median_income, y = median_house_value)) +
+  geom_point(fill = "grey60", size = 0.5) +
+  geom_smooth(method = lm) +
+  geom_text(aes(label = 1:nrow(housing_prices)), nudge_x = 0.5, nudge_y = 1, size = 2)
+```
+
+Points 11331, 17556 and 1555 appear to be the points of interest.
+
+```{r}
+housing_prices[c(11331,17556,1555),]
+```
+
+Raw data doesn't look suspect, not an obvious processing error. But note the population looks tiny, very few households. Might want to consider filtering for data where households is sizeable enough...
+
+```{r}
+housing_prices %>% 
+  ggplot(aes(x = population)) +
+  geom_histogram(bins = 100, colour = "white")
+
+housing_prices %>% 
+  ggplot(aes(x = households)) +
+  geom_histogram(bins = 100, colour = "white")
+```
+
+It doesn't make sense to filter out low number households or population, given the distributions here - they don't seem to be odd.
+
+Try removing a couple of points:
+
+```{r}
+# remove the two most concerning points
+housing_prices_rm <- housing_prices_trim %>% 
+  slice(-c(11331,17556))
+
+model_income_rm <- lm(median_house_value ~ median_income, housing_prices_rm)
+
+autoplot(model_income_rm)
+```
+
+Removing these values has not helped the model, it just shows even more extreme values (high income, low house price). So do not remove these points (continue with `housing_prices_trim`).
+
+```{r}
+summary(model_income)
+```
+
+Here, the model suggests a function:
+
+median_house_value (in $) ~= ~40,000*median_income + 45,500
+
+the p-value (<2.2e-16) is very small (much below a 0.05 significance threshold), which indicates it is highly unlikely this non-zero coefficient would happen in a world where the null hypothesis is true (that median_income has no affect on median_house_value), so we can reject the null hypothesis and say there is enough evidence to suggest that income does affect house value.
+
+The standard error is sizeable (~USD 75,000) - we are talking about house prices in the region of USD 300-500,000 with a an IQR of ~ 130 (the QQ range is ~ 120-250k in the boxplot below) so this error is half the IQR so is quite large for this to be a good model.
+
+```{r}
+housing_prices %>% 
+  ggplot(aes(x = median_house_value)) +
+  geom_boxplot()
+```
+
+The R2 is 0.4129, which is an ok correlation for such a variable outcome (house value).
+
+**Overall** this simple linear model does not meet several assumptions of linear regression, so we should not accept that this model is a good fit for our data. We need to improve it - we can try adding another predictor variable in...
+
+# 7 add another var to model
+
+> Add another predictor of your choice. Check your assumptions, diagnostics, and interpret the model.
+
+## 7a + island
+
+Let's try with ocean proximity: island. 
+
+Considering it as an independent variable, but not using the other ocean_proximities -- not sure if this is a correct approach for non-binary categorical variables...
+
+```{r}
+model_income_island <- lm(median_house_value ~ median_income + ocean_proximity_island, housing_prices_trim)
+```
+
+```{r}
+autoplot(model_income_island)
+```
+
+Oh this has not improved the model... 
+
+* RvF - still got a wedge shape, so not linear
+* QQ - residuals still not normally distributed
+* S-L still got a wedge here too, so heterskedastic
+* RvL - shows many points are near the centroid, a couple of points are very far
+
+```{r}
+hist(model_income_island$residuals)
+```
+
+This distribution doesn't look so bad though - maybe it is shifted left?
+
+```{r}
+summary(model_income_island)
+```
+
+```{r}
+mosaic::plotModel(model_income_island)
+```
+
+I would expect to have seen parallel slopes here (one for island = TRUE, another for island = FALSE) - but there is only one line.
+
+```{r}
+housing_prices_trim %>% 
+  filter(ocean_proximity_island == 1)
+```
+There are only 5 observations with island == TRUE so cannot use this in our model!
+
+Try again...
+
+## 7b + house_size / occupancy
+
+Let's derive mean house_size using total_rooms/households
+
+```{r}
+housing_prices_trim <- housing_prices_trim %>% 
+  mutate(mean_house_size = total_rooms / households)
+
+head(housing_prices_trim)
+```
+
+```{r}
+housing_prices_trim %>% 
+  ggplot(aes(x = mean_house_size, y = median_house_value)) +
+  geom_point(size = 0.5)
+```
+
+This is a no-goer - looks like majority of houses are around the same size, with a few extreme values...
+
+What about demand, some kind of measure of households by population? Derive avg_occupancy
+
+```{r}
+housing_prices_trim <- housing_prices_trim %>% 
+  select(-mean_house_size) %>% 
+  mutate(avg_occupancy = population / households) # indicates # people per household
+
+head(housing_prices_trim)
+```
+
+```{r}
+housing_prices_trim %>% 
+  ggplot(aes(x = avg_occupancy, y = median_house_value)) +
+  geom_point(size = 0.5)
+```
+
+Now there are 7 points that look like extreme values... could we filter for avg_occupancy < 100??
+
+This may be over-wrangling the data, but these few values do not make sense for a model looking at ~20,000 observations
+
+```{r}
+nrow(housing_prices_trim)
+```
+
+```{r}
+# > 100 filters 4 out
+# > 50 filters 7 out
+housing_prices_rm_high_occupancy <- housing_prices_trim %>% 
+  filter(!avg_occupancy > 50)
+```
+
+```{r}
+housing_prices_rm_high_occupancy %>% 
+  ggplot(aes(x = avg_occupancy, y = median_house_value)) +
+  geom_point(size = 0.5)
+```
+
+Now we can see scatter of data, but still does not look to have any linear relationship. Could try scaling but I don't think that is the problem here...
+
+## 7c + ocean_proximity
+
+Using `house_prices_ocean` for our dummy variable ocean_proximal:
+
+```{r}
+housing_prices_ocean %>% 
+  ggplot(aes(x = ocean_proximal, y = median_house_value)) +
+  geom_boxplot()
+```
+
+There looks to be an effect of ocean proximity with house prices, where being close to the ocean has higher house prices, but there's also a long tail of values for FALSE. Let's try including this in our model as a second explanatory variable:
+
+```{r}
+model_income_ocean <- lm(median_house_value ~ median_income + ocean_proximal, 
+                         housing_prices_ocean)
+```
+
+```{r}
+mosaic::plotModel(model_income_ocean)
+```
+
+This gives us 2 parallel lines - it looks as though being close to the ocean shifts median house_value higher.
+
+Let's diagnose this model:
+
+```{r}
+autoplot(model_income_ocean)
+```
+
+1. RvF - still a wedge shape, so not linear
+2. QQ plot does not suggest normally distributed at the extremes
+3. S-L - still a wedge shape so heterskedastic
+4. there may still be a couple of points that are influencing the model here
+
+So the model does not match our assumptions of linear regression.
+
+Let's look at the model anyway... 
+
+```{r}
+summary(model_income_ocean)
+```
+
+This model (if it were a good fit) suggests base median house value is USD 12,000 and increases with median income (multiplier effect, *35,000), and is also shifted up if the location is close to the ocean (by USD 78,000).
+
+The R2 indicates the model is a good fit, and the p-value is way below a signficance threshold of 0.05, suggesting we can reject the null hypothesis (that these explanatory variables do not predict house value).
+
+This model summary would look good, except that looking at autoplot indicates the linear model is not appropriate here.
+
+To try: standardise or scale the variables somehow? But this won't change the distribution of each (i.e. won't shift the long tail of high house prices or high income...)
