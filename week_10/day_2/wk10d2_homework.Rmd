@@ -1,0 +1,88 @@
+---
+title: "wk10d2 homework"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(janitor)
+```
+
+# 1
+
+> Load the housing_prices.csv data set and undertake an initial exploration of the data. You will find details on the data set on the relevant [Kaggle page](https://www.kaggle.com/datasets/camnugent/california-housing-prices) 
+
+```{r}
+housing_prices <- read_csv("data/housing_prices.csv")
+```
+
+```{r}
+glimpse(housing_prices)
+```
+
+Dataset about areas - population, households, features of these. One character column (ocean_proximity), rest are numeric: location, local population size and number of households, number of rooms and bedrooms in the population's households, median age (of the population from 1990 census), median income, median house value.
+
+```{r}
+housing_prices %>% 
+  summarise(across(everything(),
+                   ~sum(is.na(.x))))
+```
+
+Only var with missing values is total_bedrooms, 200 NAs out of the 19,675 observations. Tbc how to deal with these, if at all.
+
+# 2 
+
+> We expect the total_rooms of houses to be strongly correlated with total_bedrooms. Use ggpairs() to investigate correlations between these two variables.
+
+It's overkill to look at all the vars, so just look at the two of interest:
+
+```{r, message = FALSE, warning = FALSE}
+housing_prices %>% 
+  select(total_rooms, total_bedrooms) %>% 
+  GGally::ggpairs()
+```
+
+They look strongly positively correlated, and corr = 0.934 so that indicates a very strong positive correlation. (And *** indicate this is statistically significant, i.e. we can reject the null hypothesis that total_bedrooms does not affect total_rooms; it is very unlikely this data is from a world where the null hypothesis is true.)
+
+# 3 
+
+> drop total_bedrooms from the dataset, and use only total_rooms going forward
+
+Because these variables are related, we should only use one of these in our model.
+
+```{r}
+housing_prices <- housing_prices %>% 
+  select(-total_bedrooms)
+```
+
+# 4
+
+> We are interested in developing a regression model for the median_house_value of a house in terms of the possible predictor variables in the dataset.
+i. Use ggpairs() to investigate correlations between median_house_value and the predictors (this may take a while to run, don’t worry, make coffee or something).
+
+```{r, message = FALSE, warning = FALSE}
+GGally::ggpairs(housing_prices)
+```
+
+From these, it looks like there are otherexplanatory variables that are strongly related:
+
+* population, household and total_rooms are all correlated - they could be combined to create a derived variable as some kind of indicator of housing supply/demand, e.g. households * total_rooms / population (where > 1 is plenty of supply, < 1 is not enough supply, so some demand pressure)
+* long and lat are two parts to a location, and are strongly related - they should be combined to indicate individual locations (or areas) in California (where this data is about)
+
+Taking these into account, and looking at the magnitude of the correlation coefficients that are significant (*s), I would consider including the following in a model, in order of steps:
+
+1. income
+2. location (lat, long)
+3. demand (something derived from pop, household, rooms)
+4. age
+
+> ii. Perform further ggplot visualisations of any significant correlations you find.
+
+```{r}
+housing_prices %>% 
+  ggplot(aes(x = median_income, y = median_house_value)) +
+  geom_point(fill = "grey60") +
+  geom_smooth(method = lm)
+```
+
+
