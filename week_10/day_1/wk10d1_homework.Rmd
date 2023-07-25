@@ -196,7 +196,7 @@ Therefore, while this outlier seems to have been influential, it hasn't improved
 1. that the relationship is actually linear
 2. errors (residuals) should be normally distributed
 3. errors are homoskedastic (size of error has constant variance across whole range of fitted values)
-4. 
+(4. x is measured without error)
 
 #### testing assumptions using autoplot
 
