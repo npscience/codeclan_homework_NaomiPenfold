@@ -75,7 +75,7 @@ library(ggfortify)
 autoplot(model)
 ```
 
-The diagnostic plots indicate that a linear model is a good choice - the Residuals v Fitted line is roughly horizontal and around 0, and most of the points map onto the QQ line - there's just one data point that is high at the highest x value, and this affects the line at the end (far right) for both top-row plots; and there may also be a deviating point at the lower quantile).
+The diagnostic plots indicate that a linear model is a good choice - the Residuals v Fitted line is roughly horizontal and around 0, and most of the points map onto the QQ line - there's just one data point that is high at the highest x value, and this affects the line at the end (far right) for both top-row plots; and there may also be a deviating point at the lower quantile.
 
 With the linear model, the p-value of the regression coefficient is 1.911e-12, which is very small (p<0.00..001), which signifies that the relationship is highly statistically significant.
 
@@ -105,6 +105,20 @@ plot(model)
 Here, the spread of the values does not seem to differ across the majority of the range, so I think this tells us the data is homoskedastic (good!). However **data point 5 sits outside Cook's distance line**, and is pulling the leverage line upwards, indicating it may be a highly influential outlier and we may want to consider removing it (if this makes sense) to produce a better model for the other values.
 
 **Data point 18** is lower than the fitted line for leverage ~ residuals, has low leverage and is not outside Cook's distance, so it may be a non-influential outlier.
+
+### from answers:
+
+you can directly plot cook's distance for each point:
+
+```{r}
+autoplot(model, which = 4)
+```
+
+**Interpret:**
+
+Cook's distance for 5 looks substantially greater for others - an outlier, maybe return to raw data and consider how this estimate was made
+
+points 18 and 31 are higher but not very different from the rest - not outliers.
 
 ## Remodel after removing non-influential outlier (18)
 
@@ -173,4 +187,37 @@ Removing data point 5 shifts the slope from 1.2 to 1.0, and shifts the intercept
 R^2 has not changed (still 65%) so this model is just as good a fit as the original model,and the p-value is still very low so this is a significant relationship.
 
 Therefore, while this outlier seems to have been influential, it hasn't improved or worsened the goodness of fit of our model (from the residuals) but has changed (potentially improved) the function for explaining the relationship between estimated and actual length.
+
+
+### Homework review: Interpreting regression diagnostics
+
+#### assumptions of linear regression
+
+1. that the relationship is actually linear
+2. errors (residuals) should be normally distributed
+3. errors are homoskedastic (size of error has constant variance across whole range of fitted values)
+4. 
+
+#### testing assumptions using autoplot
+
+* **Residuals v fitted** - you should see scattergun of points, no pattern. If pattern, the model is not linear.
+* **Normal Q-Q** - the normal distribution of the residuals. should be linear to indicate that the frequency distribution of the residuals is a normal bell curve (small/0 residuals are most frequent, middle of bell curve peak, large +- residuals are few)
+* **Scale - Location** - check for homoskedasticity. If there is a wedge/triangle or other shape where the variance of the standardised residuals differs across the x axis, this indicates there is NOT constant variance (heteroskedasticity). Your model is working less well at places of high variance -- you may need to add in more predictors to reduce variance, or there may be clusters/groups in your data that you need to slice by. i.e. work on better modelling your data.
+* **Residuals v Leverage** - line of best fit pivots around the centroid, points further from the centre can pivot the slope of the line, they have greater leverage than points in the middle (on the fulcrum). plotting for distance from centroid (leverage) v residuals shows if there is a high error point far from the centroid that may be exerting too much influence on the shape of the line (see Cook's distance): anything close to Cook's distance lines, take a look at it (the raw data, how the raw data was made, etc)... see notebook for drawings. Leverage is more about effect on slope not intercept, Cook's distance line is asymptotic at leverage 0
+
+Can do the histogram manually
+
+```{r}
+#par(mfrow = c(2,3)) # brings plots together in a panel
+# 2 rows by 3 cols
+plot(model) # as above
+hist(model$residuals) # adds a histogram for 
+# frequency of residuals by their size
+```
+
+```{r}
+# calculate the centroid
+mean(project$estimated_length)
+mean(project$actual_length)
+```
 
