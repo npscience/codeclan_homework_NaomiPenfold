@@ -205,6 +205,22 @@ Also: it's ok to keep the island in with 5 observations; the difference in sampl
 
 If you include n dummy variables, you'll get one of them with a line of NAs in summary(model) <- a good sign of multicolinearity and you need to remove 1 dummy var.
 
+To set a reference programmatically (instead of R picking the alphabetically first one), make the <chr> a factor <fctr> type and relevel - second argument is ref = so can specify your factor 1 value here.
+
+Example (with grades df from wk10d2):
+
+```{r, eval = FALSE}
+grades2 <- grades %>% 
+  mutate(subject2 = as.factor(subject), .after = subject,
+         subject3 = relevel(subject2, 'english'))
+
+lm4 <- lm(final ~ assignment + subject2, grades2)
+lm5 <- lm(final ~ assignment + subject3, grades2)
+summary(lm4)
+summary(lm5)
+```
+
+
 # 6 simple linear regression with income
 
 > Start with simple linear regression. Regress median_house_value on median_income and check the regression diagnostics.
