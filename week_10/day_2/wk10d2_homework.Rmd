@@ -187,6 +187,24 @@ housing_prices_ocean <- housing_prices %>%
 head(housing_prices_ocean)
 ```
 
+### homework review
+
+In R, we don't need to manually make the dummy variables - just keep the ocean_proximity column and pass this into the model below. Similar results, see the coefficient estimates for each type of ocean_proximity.
+
+Example: 
+
+```{r}
+# iris dataset, 1 continuous, 1 categorical var
+lm1 <- lm(Petal.Length ~ Petal.Width + Species, iris)
+
+head(model.matrix(lm1))
+# shows that the Species var are dummy encoding automatically (3 species, missing the first species in alphabetical order):
+```
+
+Also: it's ok to keep the island in with 5 observations; the difference in sample size is not a problem. It might mean we are less empowered to make predictions about island house values later, but it's ok to include in the model. Also ok to combine similar groups.
+
+If you include n dummy variables, you'll get one of them with a line of NAs in summary(model) <- a good sign of multicolinearity and you need to remove 1 dummy var.
+
 # 6 simple linear regression with income
 
 > Start with simple linear regression. Regress median_house_value on median_income and check the regression diagnostics.
