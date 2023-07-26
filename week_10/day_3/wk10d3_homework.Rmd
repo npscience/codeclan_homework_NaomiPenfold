@@ -426,3 +426,14 @@ Other sensible predictors might be bathrooms or bedrooms
 
 * Calculate the relative importance of predictors from your best $4$-predictor model (i.e. the model without an interaction). Which predictor affects `price` most strongly?
 
+```{r}
+library(relaimpo)
+calc.relimp(mod4a, type = "lmg", rela = TRUE)
+```
+
+grade is the stronger relative contributor to the model
+view is better than lat, perhaps should have been added as second predictor
+yr_built is not that useful
+
+consider whether grade + bathrooms + view might be better...
+
