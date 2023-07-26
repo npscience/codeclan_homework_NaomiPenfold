@@ -38,9 +38,9 @@ The variable definitions are:
 `yr_built` - The year the house was initially built  
 `yr_renovated` - The year of the house’s last renovation  
 `zipcode` - What zipcode area the house is in  
-`lat` - Lattitude  
+`lat` - Latitude  
 `long` - Longitude  
-`sqft_living15` - The square footage of interior housing living space for the nearest 15 neighbors  
+`sqft_living15` - The square footage of interior housing living space for the nearest 15 neighbors
 `sqft_lot15` - The square footage of the land lots of the nearest 15 neighbors  
 </div>
 <br>
@@ -51,6 +51,7 @@ library(tidyverse)
 library(mosaic)
 library(GGally)
 library(ggfortify)
+library(modelr)
 
 kc_houses <- read_csv("data/kc_house_data.csv")
 ```
@@ -66,42 +67,360 @@ Tidy up the data ready for regression:
     * Have a think about how to treat `view`, `condition` and `grade`? Are they interval or categorical ordinal data types?
     
 ```{r}
-head(kc_houses)
+kc_houses %>% 
+  summarise(count = n(), .by = waterfront)
+# no need to convert type, 163 are waterfront (1)), 21,450 are not (0)
+# repeat for view, condition and condition: 
+## all are effectively ordinal, ok to leave as numeric
+## maybe convert condition to binned values (e.g. 1-4 poor, 5-8 ok, 9-13 good) if needed
+## for now leave as is
+
+kc_houses_trim <- kc_houses %>% 
+    # renovation / year_built --> derive new var, time since last renovation
+    # (time since built if never renovated)
+  mutate(yrs_since_renov = if_else(
+    yr_renovated > 0, 
+    year(date) - yr_renovated,
+    year(date) - yr_built)
+  ) %>% 
+    # drop unneeded vars
+  select(-c(sqft_living15, sqft_lot15, zipcode, date, id))
+
+kc_houses_trim
 ```
 
+17 vars
+21,613
 
+
+Variable reduction: probably only need one of yr_built and yrs_since_renov, and maybe condition -- look at colinearity and pick the ones with the strongest correlation with price.
 
 # Question 2
 
 Check for aliased variables using the `alias()` function (this takes in a formula object and a data set). [**Hint** - formula `price ~ .` says 'price varying with all predictors', this is a suitable input to `alias()`]. Remove variables that lead to an alias. Check the 'Elements of multiple regression' lesson for a dropdown containing further information on finding aliased variables in a dataset.
 
+```{r}
+alias(price ~ ., kc_houses_trim)
+```
+
+Suggests sqft_living and sqft_above alias with sqft_basement - just use sqft_basement and drop the other two?
+
+```{r}
+kc_houses_trim <- kc_houses_trim %>% 
+  select(-c(sqft_above, sqft_living))
+```
+
+```{r}
+alias(price ~ ., kc_houses_trim)
+```
+
+No other vars are aliased.
 
 # Question 3
 
-Systematically build a regression model containing up to **four** main effects (remember, a main effect is just a single predictor with coefficient), testing the regression diagnostics as you go
-    * splitting datasets into numeric and non-numeric columns might help `ggpairs()` run in manageable time, although you will need to add either a `price` or `resid` column to the non-numeric dataframe in order to see its correlations with the non-numeric predictors.
+> Systematically build a regression model containing up to **four** main effects (remember, a main effect is just a single predictor with coefficient), testing the regression diagnostics as you go. 
+> Splitting datasets into numeric and non-numeric columns might help `ggpairs()` run in manageable time, although you will need to add either a `price` or `resid` column to the non-numeric dataframe in order to see its correlations with the non-numeric predictors.
+> and the same in subsequent rounds of predictor selection with the `resid` column. Remember, if you are not sure whether including a categorical predictor is statistically justified, run an `anova()` test passing in the models with- and without the categorical predictor and check the p-value of the test.
 
-<details>
-<summary>**Hints**</summary>
-```{r, eval=FALSE}
-houses_tidy_numeric <- houses_tidy %>%
-  select_if(is.numeric)
+```{r, message = FALSE}
+houses_numeric_1 <- kc_houses_trim %>%
+  select_if(is.numeric) %>% 
+  select(1:8)
 
-houses_tidy_nonnumeric <- houses_tidy %>%
-  select_if(function(x) !is.numeric(x))
+houses_numeric_2 <- kc_houses_trim %>%
+  select_if(is.numeric) %>% 
+  select(1,9:15)
 
-houses_tidy_nonnumeric$price <- houses_tidy$price
-
-ggpairs(houses_tidy_numeric)
-ggpairs(houses_tidy_nonnumeric)
+ggpairs(houses_numeric_1)
+ggpairs(houses_numeric_2)
 ```
-and the same in subsequent rounds of predictor selection with the `resid` column.<br><br>
-Remember, if you are not sure whether including a categorical predictor is statistically justified, run an `anova()` test passing in the models with- and without the categorical predictor and check the p-value of the test.
-</details>
+
+Promising numeric predictors:
+
+1. Number of bathrooms, number of bedrooms
+2. Grade, latitude
 
 
+```{r, message = FALSE}
+houses_nonnumeric <- kc_houses_trim %>%
+  select_if(function(x) !is.numeric(x))
+# no non-numeric vars to look at
+```
 
-# Extensions
+From corr coefficients, start with grade and num_bathrooms:
+
+```{r}
+mod1a <- lm(price ~ grade, kc_houses_trim)
+mod1b <- lm(price ~ bathrooms, kc_houses_trim)
+```
+
+Check model diagnostics:
+
+```{r}
+autoplot(mod1a)
+autoplot(mod1b)
+```
+
+Grade relationship does not look linear, residuals not normally distributed, and looks heteroskedastic
+
+Latitude model is a bit better, but still not looking great. We need another variable.
+
+```{r}
+summary(mod1a)
+summary(mod1b)
+```
+
+Grade has better stats (R2 is higher, residual std error is lower).
+
+Let's try using both and compare to the one-predictor models
+
+```{r}
+mod1ab <- lm(price ~ grade + bathrooms, kc_houses_trim)
+
+autoplot(mod1ab)
+```
+
+similar autoplot to above - a wedge shape in LHS plots, and also residuals not normally distributed at upper extreme. not a good enough model yet.
+
+```{r}
+summary(mod1ab)
+```
+
+Residual std error is less and R2 is more than both mod1a and mod1b; mod1a is next best.
+
+Let's anova to test is mod1ab is better than mod1a:
+
+```{r}
+anova(mod1a, mod1ab)
+```
+
+Yes it is sig different and it slightly reduces RSS, so is a better model.
+
+Alternative approach: let's try grade with a different second predictor:
+
+```{r}
+mod2a <- lm(price ~ grade + lat, kc_houses_trim)
+
+autoplot(mod2a)
+```
+
+Looks similar to the others: still an uneven shape in the left-hand graphs, and not normally distributed at the upper extreme values.
+
+```{r}
+summary(mod2a)
+```
+
+Lower residual std error and higher R2 than mod1ab; mod2a may be a better model.
+
+Let's compare 1a to 2a by anova (to see effect of adding lat) - can't compare grade + bathrooms to grade + lat, different models:
+
+```{r}
+anova(mod1a, mod2a)
+```
+
+Adding latitude to grade is significantly different to just having grade and also lowers the residuals sum of squares (RSS), so mod2a is also better than mod1a.
+
+The R2 is higher, and residual std error lower, for mod2a and mod1ab, so let's use grade + lat as our first two predictors.
+
+Let's assess the remaining predictors correlations with the remaining residuals:
+
+```{r}
+kc_houses_mod2_resid <- kc_houses_trim %>% 
+  add_residuals(mod2a) %>% 
+  # remove vars in our model
+  select(-c(price, grade, lat))
+
+# split df into 2
+kc_houses_mod2_resid1 <- kc_houses_mod2_resid %>% 
+  select(resid, 1:6)
+kc_houses_mod2_resid2 <- kc_houses_mod2_resid %>% 
+  select(resid, 7:12)
+```
+
+```{r, message = FALSE}
+ggpairs(kc_houses_mod2_resid1)
+ggpairs(kc_houses_mod2_resid2)
+```
+
+From this, more promising predictors: view, waterfront, sqft_basement, yrs_since_renovation (as well as bathrooms)
+
+So, current model (mod2a) has price ~ grade + lat
+
+Let's try: 
+Mod3a: grade + lat + bathrooms
+Mod3b: grade + lat + view
+
+```{r}
+mod3a <- lm(price ~ grade + lat + bathrooms, kc_houses_trim)
+mod3b <- lm(price ~ grade + lat + view, kc_houses_trim)
+```
+
+```{r, message = FALSE}
+autoplot(mod3a)
+autoplot(mod3b)
+```
+
+Both seem non-linear, heterskedastic, and also residuals not normally distributed...
+
+```{r}
+summary(mod3a)
+summary(mod3b)
+```
+
+Of the two, mod3b has lower residual std dev and higher R2 than mod3a:
+
+244000
+0.5584
+
+These are better than mod2a:
+
+259700
+0.4995
+
+Let's test with ANOVA
+
+```{r}
+anova(mod2a, mod3b)
+```
+
+mod3b is sig different and has lower RSS than mod2a so is a better model.
+
+Best model so far: mod3b: price ~ grade + lat + view
+
+Fourth predictor: look at residuals and the remaining predictors
+
+```{r}
+kc_houses_trim_resids3 <- kc_houses_trim %>% 
+  add_residuals(mod3b) %>% 
+  select(-c(price, grade, lat, view))
+
+kc_houses_trim_resid3a <- kc_houses_trim_resids3 %>% 
+  select(resid, 1:6)
+
+kc_houses_trim_resid3b <- kc_houses_trim_resids3 %>% 
+  select(resid, 7:11)
+```
+
+```{r, message = FALSE}
+ggpairs(kc_houses_trim_resid3a)
+ggpairs(kc_houses_trim_resid3b)
+```
+
+in order of correlation coefficient (magnitude): yr_built, sqft_basement, yrs_since renovation, waterfront, condition, bathrooms
+
+Model already accounts for: price ~ grade + lat + view -- so how well-built, and two elements of location
+
+note that 
+yr_built and yrs_since_renovation are similar - also a reflection of condition and grade
+view and waterfront are similar
+bedrooms is indicator of size, as is sqft_basement and bathrooms
+
+for fourth predictors, let's try yr_built (as age factor) and sqft_basement as indicator of size (rather than bedrooms, bathrooms)
+
+mod4a: price ~ grade + lat + view + yr_built
+mod4b: price ~ grade + lat + view + sqft_basement
+
+```{r}
+mod4a <- lm(price ~ grade + lat + view + yr_built, kc_houses_trim)
+mod4b <- lm(price ~ grade + lat + view + sqft_basement, kc_houses_trim)
+```
+
+```{r}
+autoplot(mod4a)
+autoplot(mod4b)
+```
+
+similar comments to previous diagnostics (shape, not normal dist of residuals)... mod4b looks a bit better than mod4a
+
+```{r}
+summary(mod4a)
+summary(mod4b)
+```
+
+By R2 and residual std dev, mod4a is better: 234700, 0.5913
+
+And looks favourable to mod3b: 244000, 0.5584
+
+```{r}
+anova(mod3b, mod4a)
+```
+
+mod4a is sig different and better (lower RSS) than mod3b.
+
+So for a four-predictor (no interactions) model of price, we have:
+
+(mod4a) price ~ grade + lat + view + yr_built
+
+formula:
+
+> price = -2.057e+07 + 2.145e+05 * grade + 5.189e+05 * lat + 1.016e+05 * view -2.658e+03 * yr_built
+
+these coefficients are awful, but it might be because yr_built is a number in range 19XXs to now, and not an age...
+
+```{r}
+kc_houses_trim <- kc_houses_trim %>% 
+  mutate(age = year(today()) - yr_built)
+```
+
+```{r}
+mod4a1 <- lm(price ~ grade + lat + view + age, kc_houses_trim)
+```
+
+```{r, message = FALSE}
+autoplot(mod4a1)
+```
+
+```{r}
+summary(mod4a1)
+```
+
+Check:
+
+```{r}
+anova(mod3b, mod4a1)
+```
+
+This hasn't changed the coefficients!! So, the formula is:
+
+> price = -2.057e+07 + 2.145e+05 * grade + 5.189e+05 * lat + 1.016e+05 * view -2.658e+03 * yr_built
+
+The formula means that house price is affected as follows:
+
+* for the worst house: grade 1, no views (view = 0), and built very early on (earliest yr_built is 1900) in the lat with the lowest price (47.2638): 
+
+> price = -880,514
+
+This does not make actual sense - but as a baseline:
+
+* for every 1 unit of grade improvement, the house price increases by USD 214,500
+* for every 1 unit of latitude increased, the house price increases by USD 518,900
+* for every 1 year more recently that the house was built, the house price decreases by USD 2,658 (which doesn't make true-world sense, but ok)
+* and if the house has a view, the price is USD 101,600 higher
+
+So the highest house prices are location more north, with a higher grade of building standard, and with a view. More recently built houses have lower prices in this particular model (but it is a much smaller effect size than the others).
+
+Looking at the best situ
+
+max lat = 47.7776
+max grade = 13
+max view = 1 (TRUE)
+(max yr_built = 2015, or use 1900 again)
+
+> price = -2.057e+07 + 2.145e+05 * 13 + 5.189e+05 * 47.7776 + 1.016e+05 * 1 -2.658e+03 * 1990
+
+= USD 1,822,477
+
+Which falls far short of the max price in the actual dataset
+
+```{r}
+max(kc_houses_trim$price)
+```
+
+Overall this model explains ~60% of the variation in the dataset.
+
+Other sensible predictors might be bathrooms or bedrooms
+
+# Extensions - not done
 
 * Consider possible interactions between your four main effect predictors and test their effect upon $r^2$. Choose your best candidate interaction and visualise its effect. 
 
