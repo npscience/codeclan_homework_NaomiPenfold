@@ -437,3 +437,342 @@ yr_built is not that useful
 
 consider whether grade + bathrooms + view might be better...
 
+# homework review
+
+
+* treatment of variables - note they have mutated grade, etc, to factor - dummy variable issue.
+* order of attack for predictors
+
+> Main lesson here: spend time feature engineering at the beginning (meaning get the data into the best shape for linear regression through transformation)
+
+## working through
+
+1. what does 1 row represent? 1 individual house
+2. understand what variables there are, ideas of potential predictors
+3. 
+
+```{r}
+library(tidyverse)
+library(mosaic)
+library(GGally)
+library(ggfortify)
+library(modelr)
+library(skimr)
+
+kc_houses <- read_csv("data/kc_house_data.csv")
+```
+
+```{r}
+skim(kc_houses)
+```
+
+3. Feature engineering: take our raw materials, make them more valuable
+
+(i) Consider transforming vars - any extreme values? consider the impact of some really high values when the bulk are lower (positively, right skewed, hump on left) - try a log(x) transformation to make it more normally distributed
+
+We might want to log transform:
+
+* price
+* bedrooms
+* sqft_x
+
+(ii) Convert the ordinal columns to <fctr> to prevent the dummy variable problem.
+
+These are:
+
+* grade
+* view
+* condition
+
+Consider grade, is a grade 13, 13 x as good as a grade 1? No - having it as a numeric does not make sense. Instead, these are ordered levels (ordinal) not numbers:
+
+```{r}
+kc_houses %>% 
+  ggplot(aes(x = as.factor(grade), y = price)) +
+  geom_boxplot()
+```
+```{r}
+summary(lm(price ~ grade, data = kc_houses_trim))
+summary(lm(price ~ as.factor(grade), data = kc_houses_trim))
+```
+
+Model with factored grade is better (higher R2, lower residual std errors) - but not lots of lines here, several not significant. If we have a real-world reason to, we could group the grades into bins to reduce the levels.
+
+Note data dictionary: "An index from 1 to 13, where 1-3 falls short of building construction and design, 7 has an average level of construction and design, and 11-13 have a high quality level of construction and design"
+
+And looking at boxplot, we could consider grouping.
+
+(iv) And convert 0/1s to logical:
+
+* waterfront
+
+(v) Variable and dimensionality reduction
+
+* Drop any vars that are already not useful
+* Check for aliases (columns directly/partially explained by others)
+* Consider combining some vars if together they tell particular story
+
+```{r, eval = FALSE}
+houses_trim <- houses_trim %>% 
+  # drop aliases: sqft_living, sqft_above
+  select(-c(sqft_living, sqft_above)) %>% 
+  # log transform
+  mutate(log_price = log(price),
+         log_sqft_basement = log(sqft_basement),
+         log_sqft_lot = log(sqft_lot)) %>%
+  # convert ordinal to fctr
+  mutate(view = as.factor(view),
+         condition = as.factor(condition)) %>% 
+  # convert grade to groups and factorise
+  mutate(grade_bin = case_when(
+    grade %in% c(1:4) ~ 1, # low grade
+    grade %in% c(5:9) ~ 2, # medium grade
+    grade %in% c(10:13) ~ 3, # high grade
+    .default = NA_integer_
+    ),
+    grade_bin = as.factor(grade_bin)) %>% 
+  # convert waterfront to logical
+  mutate(waterfront = as.logical(waterfront)) %>% 
+  # remove replaced vars
+  select(-c(price, sqft_lot, grade)) %>% 
+  # put log_price as col 1 (for ggpairs top row)
+  relocate(log_price, .before = bedrooms)
+```
+
+There's something odd with log_sqft_basement... log(0) --> -Inf. First need to change 0s to NAs
+
+```{r}
+houses_trim %>% 
+  select(sqft_basement,log_sqft_basement) %>% 
+  head()
+```
+
+Check price and sqft_lot for 0s too
+
+```{r}
+kc_houses %>% 
+  filter(price == 0)
+
+kc_houses %>% 
+  filter(sqft_lot == 0)
+```
+
+Both empty so no 0s to worry about there
+
+```{r}
+# first drop the useless vars
+houses_trim <- kc_houses %>%
+  select(-c(zipcode, id, sqft_living15, sqft_lot15))
+  
+# check for aliases to drop
+alias(price ~ ., houses_trim)
+
+# now we can prep our data
+houses_trim <- houses_trim %>% 
+  # drop aliases: sqft_living, sqft_above
+  select(-c(sqft_living, sqft_above)) %>% 
+  # first recode 0s in sqft_basement
+  mutate(sqft_basement = if_else(
+    sqft_basement == 0,
+    NA_integer_, sqft_basement)) %>% 
+  # log transform
+  mutate(log_price = log(price),
+         log_sqft_basement = log(sqft_basement),
+         log_sqft_lot = log(sqft_lot)) %>%
+  # convert grade to groups and factorise
+  mutate(grade_bin = case_when(
+    grade %in% c(1:4) ~ 1, # low grade
+    grade %in% c(5:9) ~ 2, # medium grade
+    grade %in% c(10:11) ~ 3, # high grade
+    grade %in% c(12:13) ~ 4, # very high grade
+    .default = NA_integer_
+    ),
+    grade_bin = as.factor(grade_bin)) %>% 
+    # convert ordinal to fctr
+  mutate(view = as.factor(view),
+         condition = as.factor(condition),
+         grade = as.factor(grade)) %>% 
+  # convert waterfront to logical
+  mutate(waterfront = as.logical(waterfront)) %>% 
+  # create logical for renovated or not
+  mutate(renovated = if_else(
+    yr_renovated == 0,
+    FALSE, TRUE
+  )) %>% 
+  # create yrs since renovation and age of house as additional vars too
+  mutate(yrs_since_renovated = if_else(
+    renovated == TRUE,
+    year(date) - yr_renovated,
+    NA_integer_
+  ),
+  age_house = year(date) - yr_built) %>% 
+  # remove replaced vars (keep in grade to test grade groups or not)
+  select(-c(price, sqft_basement, sqft_lot, date, yr_renovated, yr_built)) %>% 
+  # put log_price as col 1 (for ggpairs top row)
+  relocate(log_price, .before = bedrooms)
+```
+```{r}
+skim(houses_trim)
+```
+
+
+Now we have 15 potential predictor vars
+
+Quick check for missing values
+
+```{r}
+houses_trim %>% 
+  summarise(across(everything(),
+                   ~ sum(is.na(.x))))
+```
+
+Only missing values are where sqft_basement was 0, and where not renovated.
+
+```{r}
+alias(log_price ~ ., houses_trim)
+```
+
+Alias picks up grade v grade_bin, but that's ok, we're interesting in testing which is better approach
+
+Also picks up renovatedTRUE v intercept - not meaningful?
+
+```{r}
+colnames(houses_trim)
+```
+
+Ideas about predictors:
+
+* some kind of condition: age, whether renovated or not, how ling since renovated, condition, grade_bin v grade (binned better or worse than individual grades in model?)
+* some kind of size: number of floors, bathroooms, bedrooms, loq_sqft_x and whether it has a basement or not
+* some kind of feature: view, waterfront 
+* location: lat, long
+
+### use ggpairs to look at corr
+
+use ggpairs, look at absolute value of corr coeff along the log_price row
+
+ggpairs: need to split to reduce the ggpairs down to make this easier to work with, note col 11 is log_price
+
+```{r, warning = FALSE}
+# 16 vars
+houses_trim1 <- houses_trim %>% 
+  select(1:6)
+
+houses_trim2 <- houses_trim %>% 
+  select(1,7:11)
+
+houses_trim3 <- houses_trim %>% 
+  select(1,12:16)
+
+ggpairs(houses_trim1, progress = F)
+# to enable looking, could save each plot (saves last one run)
+ggsave("images/ggpairs1.png", width = 15, height = 15)
+
+ggpairs(houses_trim2, progress = F)
+ggsave("images/ggpairs2.png", width = 15, height = 15)
+
+ggpairs(houses_trim3, progress = F)
+ggsave("images/ggpairs3.png", width = 15, height = 15)
+```
+
+in order of absolute corr:
+
+* **bathrooms** 0.55
+* **lat** 0.45
+* bedrooms 0.34
+* log_sqft_basement 0.33
+* floors 0.311
+
+ordinals: ordered by size of effect from visual of boxplot
+
+* **grade** - v obvious correlation
+* **grade_bin** - v large shift across bins
+* **waterfront**
+* condition
+* view
+* renovated - v small shift
+
+From these, ~5 variables of interest to start with, and Q of whether to use grades or grade_binned
+
+### start building model
+
+pick vars with high corr
+
+add one by one (stepwise) and do ANOVA to understand whether new model with added predictor is better than previous
+
+also see summary() and consider whether to treat the predictor differently, e.g. individual grades --> lots of lines, lots of arms in the model, and not all significant. Maybe worth grouping the grades into bins (if makes real-world sense, and looking at which grades are similar enough from the boxplots of raw data).
+
+
+#### first predictors
+
+start with bathrooms, grade and grade_bin, see which gives best first model
+
+test bathrooms + grade v bathrooms + grade_bin to see which type of grade data to use
+
+```{r}
+model1a <- lm(log_price ~ bathrooms, houses_trim)
+model1b <- lm(log_price ~ grade, houses_trim)
+model1c <- lm(log_price ~ grade_bin, houses_trim)
+```
+
+
+### diagnostics
+
+look at diagnostics... what can you tell about our model's predictions (fitted values) from these?
+
+use autoplot(model) or plot(model) - shows individual plots rather than a 2x2 of plots.
+
+* Residuals v Fitted: if we see patterns, it may be telling us we're over/under-estimating in certain ways --> the model is not ready
+* Normal Q-Q: usually see values coming off the diagonal at low and high quantiles - useful to look at whether this error is symmetrical or not, otherwise indicates distribution of residuals is skewed in some way, in which case we might want to log transform a var somewhere
+* Scale-Location: scale of our error in our model (size of residuals) along the axis of scale of our fitted values. We want to be wrong by the same amount across our model, so if the line or pattern here is not a 0-line, we fail on the assumption of homoskedasticity: we have unequal variance in our residuals across our fitted values.
+
+No real answer to what is good enough to accept / bad enough to reject a model. If looking bad, maybe linear regression is not the way to model this data.
+
+```{r}
+autoplot(model1a)
+autoplot(model1b)
+autoplot(model1c)
+```
+
+All three look pretty good! Maybe some uneven shape in the grade models, some uneven prediction across the range of house prices
+
+```{r}
+summary(model1a)
+summary(model1b)
+summary(model1c)
+```
+
+Here, the best model (highest R2, lowest residual std dev) is model1b - using raw grades (as factors), not binned
+
+    lm(formula = log_price ~ grade, data = houses_trim)
+    Residual standard error: 0.3735 on 21601 degrees of freedom
+    Multiple R-squared:  0.4973,	Adjusted R-squared:  0.4971 
+    F-statistic:  1943 on 11 and 21601 DF,  p-value: < 2.2e-16
+
+
+### add residuals to df 
+
+to find which of the remaining predictors vars could help explain the remaining residuals
+
+do this repeatedly as build model, to sense the next best predictors to try adding
+
+```{r, warning = FALSE}
+model1bresid <- houses_trim %>% 
+  add_residuals(model1b) %>% 
+  select(-c(log_price, grade, grade_bin))
+
+model1bresid1 <- model1bresid %>% 
+  select(resid, 1:7)
+
+model1bresid2 <- model1bresid %>% 
+  select(resid, 8:13)
+
+ggpairs(model1bresid1, progress = F)
+ggpairs (model1bresid2, progress = F)
+```
+
+So lat, age or waterfront might be good predictors to try adding to our model...
+
+
+> Main lesson here: spend time feature engineering at the beginning (meaning get the data into the best shape for linear regression through transformation)
+
