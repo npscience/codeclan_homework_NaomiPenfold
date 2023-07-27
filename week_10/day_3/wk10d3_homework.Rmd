@@ -776,3 +776,7 @@ So lat, age or waterfront might be good predictors to try adding to our model...
 
 > Main lesson here: spend time feature engineering at the beginning (meaning get the data into the best shape for linear regression through transformation)
 
+# my own thoughts
+
+how to draw planes of best fit? see https://rpubs.com/ericroh/334817
+
