@@ -1,0 +1,84 @@
+---
+title: "Exploration"
+output: html_notebook
+---
+
+# Setup and load data
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(skimr)
+library(GGally) # for ggpairs()
+library(mosaic) # for plotModel()
+library(modelr)
+library(ggfortify) # for autoplot()
+library(broom) # for tidy() and glance()
+library(relaimpo) # for calc.relimp()
+library(leaps) # for automated model building
+# also use base summary() and stats lm()
+```
+
+```{r}
+red_wine <- read_csv("data/wine_quality_red.csv")
+white_wine <- read_csv("data/wine_quality_white.csv")
+```
+
+```{r}
+skim(red_wine)
+```
+
+~1600 (1599) observations
+1 character variable: region
+13 numeric variables: 
+
+* wine_id - can drop
+* fixed_acidity - looks normally distributed but long right tail
+* volatile_acidity
+* citric_acid
+* residual_sugar
+* chlorides
+* free_sulfur_dioxide
+* total_sulfur_dioxide
+* density - looks normally distributed from histo
+* p_h - - looks normally distributed from histo (already a log scale scientifically)
+* sulfates
+* alcohol
+* quality - this is **outcome / response** variable, looks normally distributed
+
+Numeric variables are all continuous (not hidden ordinal), most are quite strongly right-skewed and may need transforming (using log)
+
+```{r}
+skim(white_wine)
+```
+
+~5000 (4898) observations
+
+* same variables as for red wine
+* outcome var (quality) looks left-skewed
+* fixed_acidity and total_sulfur_dioxide look normally distributed
+* alcohol and pH look left-skewed - note pH is already a log scale scientifically, is it valid to transform again?
+* rest look right-skewed
+
+
+# modelling plan
+
+Before looking any further or starting cleaning, first plan the modelling process
+
+Feature inclusion/exclusion:
+
+* I will drop wine_id as it is not a predictor
+* I will look at red and white wines separately, because I understand them to have different chemical properties and I am curious to see whether the same features are important for quality in both or not
+* Region is a variable in both - I understand that many chemical properties of wines come about from the type of soil they're grown in (as well as variety of grape and process), and region is a big factor in this. Instead of looking at region AND the chemical properties, I will not look at region. I may model for region alone at the end to see if tehre are any correlations / interactions with other variables.
+
+Model building:
+
+* As best practice, I will split train/test data using 10-fold cross validation, with ~160 observations in each test set for red, ~490 in white
+* I will use automated model building, with best subsets, as a first step to get an approximate model, and then test this and consider adding/removing interactions to improve the model
+
+
+
+
+
+
+
