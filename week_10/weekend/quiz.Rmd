@@ -1,0 +1,53 @@
+---
+title: "Quiz"
+output: html_notebook
+---
+
+# Q1 
+
+    I want to predict how well 6 year-olds are going to do in their final school exams. Using the following variables am I likely under-fitting, fitting well or over-fitting? Postcode, gender, reading level, score in maths test, date of birth, family income.
+    
+All variables seem reasonable to include, seem reasonable to assume they might have an effect - so not overfitting.
+
+# Q2
+
+    If I have two models, one with an AIC score of 34,902 and the other with an AIC score of 33,559 which model should I use?
+
+The latter, lower AIC is better
+
+# Q3
+
+    I have two models, the first with: r-squared: 0.44, adjusted r-squared: 0.43. The second with: r-squared: 0.47, adjusted r-squared: 0.41. Which one should I use?
+
+The first, less diff between R2 and adj R2 indicates not overfitted; the second seems to be overfitted, with adj R2 deviating from R2.
+
+# Q4
+
+    I have a model with the following errors: RMSE error on test set: 10.3, RMSE error on training data: 10.4. Do you think this model is over-fitting?
+
+No, the scores are similar, but that doesn't mean it's overfit, only that the prediction error in the model is similar for both test and train data. Can't tell how it might work with new test data though.
+
+# Q5
+
+    How does k-fold validation work?
+    
+Does a test-train split K times with your data, where each test set is 1/K sample from your whole dataset, and no observation is in a test set more than once. It picks the best model out of these K models.
+
+# Q6
+
+    What is a validation set? When do you need one?
+    
+Validation set, aka test set, is a portion of your original data that you've held back from training the model on, so you can test how well your model predicts the actual values in this validation set. It simulates having new data from outside your known dataset.
+
+# Q7 
+
+    Describe how backwards selection works.
+    
+In backwards stepwise selection, you make a model worth all the potential predictors in it, then see if you can improve the model by removing predictors one at a time (i.e. reducing the number of predictors in the model)
+
+# Q8
+
+    Describe how best subset selection works.
+
+Best subset selection finds the best models with 1, 2, 3, 4 and so on... number of predictors, so you can compare measures of goodness of fit and see which number of predictors gives optimal model performance.
+
