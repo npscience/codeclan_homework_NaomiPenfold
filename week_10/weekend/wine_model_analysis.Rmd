@@ -11,10 +11,11 @@ library(janitor)
 library(skimr)
 library(GGally) # for ggpairs()
 library(mosaic) # for plotModel()
-library(modelr)
 library(ggfortify) # for autoplot()
 library(broom) # for tidy() and glance()
 library(relaimpo) # for calc.relimp()
+library(modelr) # for add_residuals and add_predictions()
+library(caret) # for K-fold cross validation
 library(leaps) # for automated model building
 # also use base summary() and stats lm()
 ```
@@ -61,24 +62,343 @@ skim(white_wine)
 * rest look right-skewed
 
 
-# modelling plan
+# Modelling plan
 
 Before looking any further or starting cleaning, first plan the modelling process
 
-Feature inclusion/exclusion:
+## Feature inclusion/exclusion:
 
 * I will drop wine_id as it is not a predictor
 * I will look at red and white wines separately, because I understand them to have different chemical properties and I am curious to see whether the same features are important for quality in both or not
-* Region is a variable in both - I understand that many chemical properties of wines come about from the type of soil they're grown in (as well as variety of grape and process), and region is a big factor in this. Instead of looking at region AND the chemical properties, I will not look at region. I may model for region alone at the end to see if tehre are any correlations / interactions with other variables.
+* Region is a variable in both - I understand that many chemical properties of wines come about from the type of soil they're grown in (as well as variety of grape and process), and region is a big factor in this. Instead of looking at region AND the chemical properties, I will not look at region. I may model for region alone at the end to see if there are any correlations / interactions with other variables.
 
-Model building:
+## Model building process:
 
-* As best practice, I will split train/test data using 10-fold cross validation, with ~160 observations in each test set for red, ~490 in white
-* I will use automated model building, with best subsets, as a first step to get an approximate model, and then test this and consider adding/removing interactions to improve the model
+* Test/train split: As best practice, I will split train/test data using 10-fold cross validation, with ~160 observations in each test set for red, ~490 in white
+* Cleaning & feature engineering: before split - transform where needed, check for NAs; after split - explore the variables and correlations, understand what the variables mean (see data dictionary, online search if time)
+* Modelling method: ~~I will use automated model building with best subsets as a first step to get an approximate model with main features~~ Using caret::train() to set up K-fold CV, therefore train model (method "lm" for linear regression) this way, and then check the diagnostics and success measures for this model and consider adding/removing interactions to improve the model
+* Measure: I'll use BIC and adjusted R squared to assess which models are better; also the plots of residuals v fitted values to check whether the model explains the data well or if there is anything uneven 
+* Improve the model using manual stepwise regression, to also include potential interactions: check correlations between vars and also with vars and remaining residuals
+* Test: Use the model to predict values in the test set - check RMSE to understand predictive accuracy
+* Interpret: check relative importance, explain the model
+
+# 1. Transform data
+
+white_wine cleaning
+
+* no NAs
+* 19 0s in citric acid, to exclude when log transforming
+* after log transformation --> only ln_alcohol histogram looks more normal, these transformations might not be useful
+* remove citric acid transformation as this introduces missing values that prevents train() from working, and given citric acid data not much improved from the transformation anyway
+* note from dictionary: "wines with greater than 45 grams/liter are considered sweet" --> should i recategorise any wines as sweet or not? No, assuming this white wine is not a dessert wine (it's all "variants of the Portuguese “Vinho Verde” wine")
+
+```{r}
+# find any 0 values in dataset, before log transform
+colSums(white_wine == 0) # 19 in citric_acid
+
+white_wine %>%
+  mutate(ln_volatile_acidity = log(volatile_acidity),
+         ln_citric_acid = if_else(citric_acid != 0, log(citric_acid), NA_integer_),
+         ln_residual_sugar = log(residual_sugar),
+         ln_chlorides = log(chlorides),
+         ln_free_sulfur_dioxide = log(free_sulfur_dioxide),
+         ln_density = log(density),
+         ln_sulphates = log(sulphates),
+         ln_alcohol = log(alcohol)) %>% 
+  skim()
+```
+
+```{r}
+white_wine_transform <- white_wine %>%
+  mutate(ln_volatile_acidity = log(volatile_acidity),
+         ln_residual_sugar = log(residual_sugar),
+         ln_chlorides = log(chlorides),
+         ln_free_sulfur_dioxide = log(free_sulfur_dioxide),
+         ln_density = log(density),
+         ln_sulphates = log(sulphates),
+         ln_alcohol = log(alcohol)) %>% 
+  dplyr::select(-c(wine_id,region)) 
+# note dplyr select masked by package MASS
+```
+
+# 2: Set up 10-fold CV and model with all vars
+
+```{r}
+white_wine_cv_10_fold <- trainControl(method = "cv", # cross-validation
+                           number = 10, # 10-fold
+                           savePredictions = TRUE) # save all predictions
+
+model_ww10fold <- train(quality ~ .,
+               data = white_wine_transform,
+               trControl = white_wine_cv_10_fold,
+               method = 'lm')
+```
+
+```{r}
+summary(model_ww10fold)
+```
+
+Note adj R2 is quite close to R2 suggesting this is not overfitted
+
+Adj R2 is 0.3034
+
+Model contains both ln_ and non-transformed versions of the same variables -- pick the most significant one of each, and call this a subset... 
+
+```{r}
+model_ww10fold$resample
+```
+
+```{r}
+mean(model_ww10fold$resample$RMSE)
+```
+
+```{r}
+plot(model_ww10fold)
+```
+
+Cannot run diagnostic plots with autoplot() or plot() using a train() model output. Try manually?
+(actually it is possible, just need to feed in model$finalModel)
+
+```{r}
+# plot Residuals v Fitted values
+plot(x = model_ww10fold$finalModel$fitted.values, y = model_ww10fold$finalModel$residuals)
+```
+
+Residuals v Fitted looks good, maybe 3 diagionals in there
+
+Try keeping only normal or ln_ version of each variable (based on lowest p-value in model above):
+
+```{r}
+white_wine_transform2 <- white_wine %>%
+  mutate(ln_volatile_acidity = log(volatile_acidity),
+         ln_chlorides = log(chlorides),
+         ln_density = log(density)) %>% 
+  dplyr::select(-c(wine_id,region,
+                   volatile_acidity,chlorides,density)) 
+
+white_wine_cv_10_fold <- trainControl(method = "cv", # cross-validation
+                           number = 10, # 10-fold
+                           savePredictions = TRUE) # save all predictions
+
+model_ww10fold_2 <- train(quality ~ .,
+               data = white_wine_transform2,
+               trControl = white_wine_cv_10_fold,
+               method = 'lm')
+```
+
+```{r}
+summary(model_ww10fold_2)
+```
+
+* Again R2 and adj R2 quite similar, suggests not overfitting.
+* Most features are significant, only citric acid, total sulfur dioxide and ln_chlorides are not.
+* Adj R2 is lower than the previous model, 0.2642 v 0.3034 (but previous model was incorrect as accounted for some features twice - normal and ln_ versions)
+* Residual std error also a bit higher, but quite small relative to the scale of the outcome variable (0.8 on 1-13 quality scale)
+
+```{r}
+model_ww10fold_2$resample
+```
+
+Variability between the folds is quite low. 
+
+```{r}
+mean(model_ww10fold_2$resample$RMSE)
+```
+
+(RMSE similar to looking at residual std error in summary()) -- suggests this model predicts the test sets with an average of 81% accuracy, which seems very good.
+
+```{r}
+plot(x = model_ww10fold_2$finalModel$fitted.values, y = model_ww10fold_2$finalModel$residuals)
+```
+
+Very similar plot to the previous model.
+
+```{r}
+broom::glance(model_ww10fold$finalModel) %>%  clean_names()
+broom::glance(model_ww10fold_2$finalModel) %>%  clean_names()
+```
+
+BIC:
+
+* model 1: 11680.08
+* model 2: 11896.23
+
+Again, BIC is higher (thus worsE) in model 2 - but model 1 was not valid.
+
+```{r}
+autoplot(model_ww10fold_2$finalModel)
+```
+
+These plots actually look pretty good! No shapes in left-hand ones, QQ plots ok, some deviation at extremes, and perhaps more so at lower end than higher end, which isn't great, and only one point that might be an influential extreme value (X278?)
+
+Inspecting X278:
+
+```{r}
+white_wine_transform2[276:280,] %>% 
+  add_residuals(model_ww10fold_2)
+```
+
+Nothing looks strange about this row - no reason to consider it an outlier. Leave it as is.
+
+# 3: Improve the model
+
+Starting with the model from 10-fold CV (model 2), can I improve on this?
+
+current model measures:
+
+* adj R2 = 0.2641509
+* BIC = 11896.23
+* RMSE (predictive accuracy) = 0.8082702
+* Residual standard error: 0.8069 on 4886 degrees of freedom
+
+With all vars in (some ln_, some not)
+
+* Use backwards stepwise regression to remove vars.
+* Also check for potential interactions to consider
+
+## Check for interactions
+
+```{r, message = FALSE}
+ggpairs(white_wine_transform2)
+```
+
+Look to be some correlations between sugar, density, alcohol, total sulfur dioxide as well as pH and fixed acidity
+
+```{r, message = FALSE}
+white_wine_transform2 %>% 
+  dplyr::select(residual_sugar, alcohol, ln_density, total_sulfur_dioxide, p_h, fixed_acidity) %>% 
+  ggpairs()
+```
+
+Add to the variables in the current model:
+
+residual_sugar:ln_density
+alcohol:ln_density
+total_sulfur_dioxide:ln_density
+alcohol:residual_sugar
+alcohol:total_sulfur_dioxide
+total_sulfur_dioxide:residual_sugar
+
+plus
+
+p_h:fixed_acidity
+
+Density as an interaction with alcohol and sugar makes sense - alcohol and sugar change the "thickness" feeling of the wine
+pH and fixed acidity relationship also makes sense - pH is a measure of acidity
+
+```{r}
+model_ww3 <- lm(quality ~ . + residual_sugar:ln_density + alcohol:ln_density + total_sulfur_dioxide:ln_density + alcohol:residual_sugar + alcohol:total_sulfur_dioxide + total_sulfur_dioxide:residual_sugar +p_h:fixed_acidity, data = white_wine_transform2)
+```
+
+```{r}
+autoplot(model_ww3)
+```
+
+These plots look good, no worse than model 2. Still got a larger deviations from normal Q-Q at the lower extreme, suggesting our residuals distribution is skewed somewhat.
+
+Looks like the high leverage observation is row 2782 not 278
+
+```{r}
+white_wine_transform2[2780:2784,]
+```
+
+Looks like pretty high residual sugar from this snapshot
+
+```{r}
+white_wine_transform2 %>% 
+  ggplot(aes(x = residual_sugar)) + 
+  geom_histogram(bins = 100)
+```
+
+This shows one bin out above 60 - looks like this row is the max sugar, and is abnormally high - "wines with greater than 45 grams/liter are considered sweet" so maybe this is a particularly sweet wine. Still keeping in for now, would be good to be able to predict it.
+
+```{r}
+summary(model_ww3)
+```
+
+Adj R2 is only slightly lower than R2, suggests still not overfitting
+
+```{r}
+BIC(model_ww3)
+```
+
+```{r}
+white_wine_transform2 %>% 
+  add_predictions(model_ww3) %>% 
+  mutate(error = quality - pred,
+         sq_error = error^2) %>% 
+  summarise(RMSE = sqrt(mean(sq_error)))
+```
+
+Comparing models:
+
+| Model | Adj R2 | BIC | RMSE | Residual std error |
+| ---- | ---- | ---- | ---- | ---- |
+| model_ww10fold_2 | 0.2641509 | 11896.23 | 0.8082702 | 0.8069 |
+| model_ww3 | 0.2726 | 11893.48 | 0.8007799	 | 0.8023 |
+
+Model 3 has higher adj R2, lower residual standard error and RMSE and lower BIC. So this is the best model yet, and also the one with the most predictors, which we could start to reduce and see if we can find the simplest model that is still as good as (if not better than) this one.
+
+## Consider remaining residuals
+
+```{r, message = FALSE}
+# look at resid v first 6 vars
+white_wine_transform2 %>% 
+  add_residuals(model_ww3) %>% 
+  dplyr::select(resid, -quality, 1:6) %>% 
+  ggpairs()
+```
+
+None of these correlate with residuals.
+
+```{r, message = FALSE}
+white_wine_transform2 %>% 
+  add_residuals(model_ww3) %>% 
+  dplyr::select(resid, 7:12, -quality) %>% 
+  ggpairs()
+```
+
+None of these correlate with residual either -- all variables are accounted for in model so no remaining residual can be reduced by adding in any variable (other than interactions, which I've already added for the most strongly correlated variables)
+
+# Explain current model
+
+Best model right now is model 3.
+
+```{r}
+summary(model_ww3)
+```
+
+This model's formula is:
+
+> white wine quality = 9.495 - 0.934 fixed_acidity + 0.022 citric_acid - 0.057 residual_sugar + 0.003 free_sulfur_dioxide - 0.009 total_sulfur_dioxide - 1.3 p_h + 0.665 sulphates - 0.305 alcohol - 0.614 ln_volatile_acidity - 0.079 ln_chlorides + (226.6 + 1.452 residual_sugar - 37.76 alcohol - 0.262 total_sulfur_dioxide) * ln_density + 0.015 residual_sugar * alcohol + 0.0007 total_sulfur_dioxide * alcohol + 0.00005 residual_sugar * total_sulfur_dioxide + 0.330 fixed_acidity * p_h
+
+In essence:
+
+* quality decreases as pH increases (more alkaline) and log volatile acidity decreases but also as fixed acidity increases and quality increases as a factor of fixed_acidity and p_h (so maybe acidity v alkaline equals out?) 
+* quality increases with ln_density, with more sugary wine supporting this, but with the effect reduced by increasing alcohol and total_sulfur_dioxide
 
 
+## Reduce variables - WIP
 
+Let's take model 3 and start removing non-significant predictors one by one
 
+```{r}
+summary(model_ww3)
+```
 
+### model 4: remove citric acid
+
+```{r}
+model_ww4 <- lm(quality ~ fixed_acidity + residual_sugar + free_sulfur_dioxide + total_sulfur dioxide + p_h + sulfates + alcohol + ln_volatile_acidity + ln_chlorides + ln_density + residual_sugar:ln_density + alcohol:ln_density + total_sulfur_dioxide:ln_density + alcohol:residual_sugar + alcohol:total_sulfur_dioxide + total_sulfur_dioxide:residual_sugar + p_h:fixed_acidity, data = white_wine_transform2)
+```
+
+(Stopping here)
+
+Qs for homework review:
+
+* how to uderstand prediction accuracy?
+* what is RSME again?
+* how to do best subsets with k-fold CV - are there other packages that let me split and train separately?
+* is it valid to pick log v not based on p-value in model with both in?
 
 
