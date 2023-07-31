@@ -401,4 +401,14 @@ Qs for homework review:
 * any other packages to use for K-fold CV (or how to do best subsets with this)? are there other packages that let me split and train separately?
 * is it valid to pick log v not based on p-value in model with both in?
 
+# homework review
+
+* don't forget alias() to check for variables saying the same thing - tbc if var and ln_var show up as aliases, they might not
+* look at region v quality before just chucking region out
+* resid = actual - pred
+* log with 0s - add 1 to it to make this work, log(var+1)
+* could write a function for ln_var = log(var) to use in mutate, or specify colnames using .names arguemnt in across: ```mutate(across(.cols = where(is.numeric), .fns = ~ log(1 + .x), .names = "log_{.col}"))```
+* 
+
+
 

@@ -1,0 +1,291 @@
+---
+title: "Jamie's wine model"
+output: html_notebook
+---
+
+Homework review on Monday
+
+```{r}
+library(tidyverse)
+library(GGally)
+library(modelr)
+
+red_wine <- read_csv("data/wine_quality_red.csv")
+white_wine <- read_csv("data/wine_quality_white.csv")
+```
+
+# set up method
+
+* what goodness of fit measure? adj R2, AIC/BIC
+* test-train split? yes; 90:10 (160 test is ok for smallest df, red wine)
+* K-fold CV? yes - to prevent overfitting
+* model? or models? red/white separately
+
+try white model first
+
+```{r}
+# set up test-train split first
+n_data_white <- nrow(white_wine)
+test_prop <- 0.1
+
+test_index_white <- sample(1:n_data_white, size = n_data_white*test_prop)
+test_white <- slice(white_wine, test_index_white)
+train_white <- slice(white_wine, -test_index_white)
+```
+
+Note any transformations we apply to our training set from now on, we can recapitulate in our predictive model formula later for our test data.
+
+# explore the data
+
+* what does 1 row represent? 1 row = 1 wine, quality score is an average
+* what vars do we have? physicochemical properties of the wine, plus region
+* what transformations might make sense? some skewed distributions might need transforming
+* what influences quality? don't know yet, will need to explore correlations; data dictionary has some interesting info
+
+```{r}
+skimr::skim(train_white) %>% view()
+```
+
+```{r}
+train_white %>% 
+  select(quality, 2:7) %>% 
+  ggpairs(progress = F)
+```
+
+Can see slight negative correlation in fixed_acidity.
+
+Looking at chlorides, maybe the middle amount is the best: could transform to abs(diff_from_mean) or (diff_from_mean)^2 to frame it as extreme v middle values. Could also make them into z-scores (x - mu / sd).
+Maybe also similar situ for citric_acid.
+
+
+```{r}
+train_white %>% 
+  select(quality, 8:14) %>% 
+  ggpairs(progress = F)
+```
+
+Could believe alcohol is positively correlated, also knowing this influences beer quality score (prior domain knowledge). Other ones don't look like correlations, maybe some extreme values influencing.
+
+Region doesn't look like it has any influence, not worth including.
+
+Seeing correlations between predictors, e.g. alcohol and density - but Jamie wouldn't chuck out because of this, could use interaction, could decide not to include density if already have alcohol, etc, better to include to have this choice.
+
+So we have: alcohol (+ve, also correlated with density), fixed_acidity (-ve) and maybe a transformed measure of chlorides and citric_acid.
+
+## transform
+
+```{r}
+train_white_fe <- train_white %>% 
+  # log transform
+  mutate(across(.cols = where(is.numeric),
+                .fns = ~ log(1 + .x),
+                .names = "log_{.col}")) %>% # this is how to create new cols instead of overwriting
+  # transform the extreme value hump data
+  mutate(chlorides_diff_to_mean = abs(chlorides - mean(chlorides)), .after = chlorides) %>%  # check skim, see mean ~= median
+  mutate(citric_acid_diff_to_mean = abs(citric_acid - mean(citric_acid)), .after = citric_acid)
+
+head(train_white_fe)
+```
+
+```{r}
+train_white_fe %>% 
+  ggplot(aes(x = chlorides_diff_to_mean, y = quality)) +
+  geom_point() +
+  geom_smooth(method = lm)
+
+train_white_fe %>% 
+  ggplot(aes(x = citric_acid_diff_to_mean, y = quality)) +
+  geom_point() +
+  geom_smooth(method = lm)
+```
+
+Slight negative correlation for chlorides, more negative correlation for citric_acid.
+
+Not sure this is working.
+
+Need to have a look again and put quality on the y-axis - in ggpairs, put quality as the _last_ var not the first one:
+
+```{r}
+train_white_fe %>% 
+  ggplot(aes(x = chlorides, y = quality)) +
+  geom_point()
+
+train_white_fe %>% 
+  ggplot(aes(x = citric_acid, y = quality)) +
+  geom_point()
+```
+
+Now we see that there is not the shape that high/low quality is high/low chlorides. Citric acid still seems to have this shape though, might be worth keeping.
+
+Don't use the chloride transformation as we move forward. Do consider citric_acid_diff_to_mean.
+
+Look at correlations with the new log_ vars
+
+```{r}
+train_white_fe %>% 
+  select(quality, starts_with("log_")) %>% 
+  select(1:8) %>% 
+  select(starts_with("log_"), quality) %>%  # put quality last so it's on y-axis vs others
+  ggpairs(progress = F)
+```
+
+Maybe also log_volatile_acidity, log_chloride (both -ve)
+
+```{r}
+train_white_fe %>% 
+  select(quality, starts_with("log_")) %>% 
+  select(1, 9:14) %>% 
+  select(starts_with("log_"), quality) %>%  # put quality last so it's on y-axis vs others
+  ggpairs(progress = F)
+```
+
+Log_alcohol is strong (but already have alcohol), log_density corr looks like it might be stretched by some extreme values - ignore (but maybe interaction with alcohol, still here with the log values), log_total_sulfur_dioxide might also have this hump shape that we could transform too.
+
+```{r}
+train_white_fe <- train_white_fe %>% 
+  mutate(diff_log_total_sulfur_dioxide = abs(log_total_sulfur_dioxide - mean(log_total_sulfur_dioxide)), .after = log_total_sulfur_dioxide)
+
+train_white_fe %>% 
+  ggplot(aes(x = diff_log_total_sulfur_dioxide, y = quality)) + 
+  geom_point() +
+  geom_smooth(method = lm)
+```
+
+There might be something here too.
+
+Features of interest: 
+
+* alcohol (+ve, also correlated with density)
+* fixed_acidity (-ve)
+* citric_acid_diff_to_mean (-ve)
+* diff_log_total_sulfur_dioxide
+* log_volatile_acidity
+* log_chloride
+
+# start modelling
+
+forward stepwise
+
+```{r}
+mod1 <- lm(quality ~ alcohol, train_white_fe)
+summary(mod1)
+```
+
+```{r}
+# check remaining residuals
+train_white_fe %>% 
+  add_predictions(mod1) %>% 
+  add_residuals(mod1) %>% 
+  select(2:8, resid) %>% # for first 7 vars
+  ggpairs(progress = F)
+```
+
+```{r}
+train_white_fe %>% 
+  add_predictions(mod1) %>% 
+  add_residuals(mod1) %>% 
+  select(9:15, resid) %>% # for first 6 vars
+  ggpairs(progress = F)
+```
+
+
+```{r}
+train_white_fe %>% 
+  add_predictions(mod1) %>% 
+  add_residuals(mod1) %>% 
+  select(16:23, resid) %>% # for first 6 vars
+  ggpairs(progress = F)
+```
+
+
+```{r}
+train_white_fe %>% 
+  add_predictions(mod1) %>% 
+  add_residuals(mod1) %>% 
+  select(24:30, resid) %>% # for first 6 vars
+  ggpairs(progress = F)
+```
+
+
+Maybe volatile acidity(log and normal) is a good next one, maybe also log_sulphur_dioxide, log_total_sulfur_dioxide
+
+## add volatile acidity
+
+```{r}
+mod2 <- lm(quality ~ alcohol + volatile_acidity, train_white_fe)
+```
+
+
+```{r}
+library(ggfortify)
+autoplot(mod2)
+```
+
+Looks good for our assumptions of linear regression
+
+
+```{r}
+summary(mod2)
+```
+
+Adj R2 is 0.2241 (vs 0.1754 for mod 1) so looking like a better model here
+
+```{r}
+anova(mod1, mod2)
+```
+
+Yes it's a different model and reduces RSS so is an improvement
+
+## Validity of including aliases / overlapping variables
+
+```{r}
+mod3 <- lm(quality ~ alcohol + volatile_acidity + log_volatile_acidity, train_white_fe)
+
+summary(mod3)
+```
+
+Including the log_ one makes ordinary one normal, and even flips the sign of the coefficient. Don't want to include both of these.
+
+Could try mod2 but with the log_ one instead, and compare to original mod2. Overall, best to make as few models as possible, so this isn't great (given stepwise's flaws).
+
+```{r}
+mod2b <- lm(quality ~ alcohol + log_volatile_acidity, data = train_white_fe)
+
+summary(mod2)
+summary(mod2b)
+```
+
+Mod2b is slightly better than mod2, not by much!
+
+Remember also that log_ makes it harder to communicate, but can find ways to translate this for our audience ("X influences Y"; "X increases Y"; "X increases Y, in that when you multiply X by 10, Y increases by 1", "volatile_acidity has a log normal distribution" (if true that log_ normalises the dist))
+
+A better sense might be to look at correlations in ggpairs() and pick the more closely correlated ones. 
+
+In terms of truly aliased variables (like a, b and c where a + b = c), we do not to remove aliases here as a hyigene factor before modelling.
+
+## CV
+
+can do this multiple times - with non-transformed, with log_transformed, with subset of 4 vars (e.g. if have a sensible guess or from this initial stepwise exploration) --> then compare these output models to see which is best.
+
+test/train split first and you have an unused test 10% that can then use to test the final models and understand predictive accuracy.
+
+So, will hit this more later (including "hyperparameter training") but consider:
+
+* test/train split first - need a leftover test set (validation set) to tell us how good our trained model was, which of our trained models to use (which hyperparameters were best - the setup of our model process)
+* do some exploration first to understand vars, even with some stepwise regression to get to which small subset of vars might be useful to try alongside all (outcome ~ .) for transformed and untransformed vars
+* use K-fold CV to finetune the success measures, have a few model options to try when predicting outcome for test data
+
+### hyperparameters
+
+> Basically, anything in machine learning and deep learning that you decide their values or choose their configuration before training begins and whose values or configuration will remain the same when training ends is a hyperparameter.
+Here are some common examples:
+- Train-test split ratio
+- Learning rate in optimization algorithms (e.g. gradient descent)
+- Choice of optimization algorithm (e.g., gradient descent, stochastic gradient descent, or Adam optimizer)
+
+source: https://towardsdatascience.com/parameters-and-hyperparameters-aa609601a9ac
+
+
+
+
+

@@ -9,6 +9,10 @@ output: html_notebook
     
 All variables seem reasonable to include, seem reasonable to assume they might have an effect - so not overfitting.
 
+## answer
+
+Over-fitting. Remember that most people are uniquely identifiable by their postcode, gender and date of birth. If we include all these variable in our model, or model will not be finding patterns, but identifying individuals.
+
 # Q2
 
     If I have two models, one with an AIC score of 34,902 and the other with an AIC score of 33,559 which model should I use?
@@ -38,6 +42,10 @@ Does a test-train split K times with your data, where each test set is 1/K sampl
     What is a validation set? When do you need one?
     
 Validation set, aka test set, is a portion of your original data that you've held back from training the model on, so you can test how well your model predicts the actual values in this validation set. It simulates having new data from outside your known dataset.
+
+## answer
+
+A set that is used neither to test or train your models. Used as a final measure of accuracy. They are particularly useful when you are tuning hyper-parameters.
 
 # Q7 
 
