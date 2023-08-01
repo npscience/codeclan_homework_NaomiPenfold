@@ -39,9 +39,11 @@ LDA is also used in facial recognition programs, to identify the main features b
   * homoskedasticity - same level of variance across all predictors
   * multicolinearity - if two or more predictors are correlated, LDA's predictive power is weakened
   * all observations are independent from each other (i.e. no paired data, no people before/after groups)
+  * must have sample size greater than the number of variables
 
 # References
 
 * https://en.wikipedia.org/wiki/Linear_discriminant_analysis  
 * https://yangxiaozhou.github.io/data/2019/10/02/linear-discriminant-analysis.html 
+* https://www.analyticsvidhya.com/blog/2021/08/a-brief-introduction-to-linear-discriminant-analysis/ 
 * https://en.wikipedia.org/wiki/Altman_Z-score
