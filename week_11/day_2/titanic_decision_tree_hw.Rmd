@@ -146,6 +146,8 @@ titanic_fit
 
 Note the probability decimals are prob(0, "no") not prob(1, "yes"), so prob(survived) = 1 - decimal
 
+> Q: order of yesno flag important for tree but reverse order for what's needed for yardstick?
+
 * In the full training dataset, prob(survival) = 100 - 59.3% = 40.7%
 * The first predictor the data is split by is sex, whereby being female increased chance of survival: if female (35% of the 570 passengers in this training dataset), prob(survival) = 76% (100 - 24%); if male (74% of the passengers here), prob(survival) = 21.4% (100 - 78.6%)
 * In females, the next predictor is passenger class:
