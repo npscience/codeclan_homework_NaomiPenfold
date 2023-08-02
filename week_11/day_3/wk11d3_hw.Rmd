@@ -1,0 +1,282 @@
+---
+title: "wk11 d3 homework: clustering"
+output: html_notebook
+---
+
+```{r}
+library(tidyverse)
+library(cluster)
+library(factoextra)
+library(broom)
+library(ggsignif)
+library(rstatix)
+
+customers <- read_csv("data/mall_customers.csv") %>% 
+  janitor::clean_names()
+```
+
+* Each row is a customer, with gender, age, annual income (1000s) and spending score (1 to 100)
+* 200 customers in our data
+
+```{r}
+customers %>% 
+  summarise(prop = n()/nrow(customers), .by = gender)
+```
+
+* 56% customers are female, rest are male
+
+```{r}
+customers %>% 
+  ggplot(aes(x = age, fill = gender)) + 
+  geom_boxplot()
+```
+
+Not much shape in the age distribution by gender women have smaller IQR and slightly lower median age - distribution looks a little right-skewed for both
+
+```{r}
+customers %>% 
+  ggplot(aes(x = annual_income_k, fill = gender)) + 
+  geom_boxplot()
+
+customers %>% 
+  ggplot(aes(x = annual_income_k, fill = gender)) + 
+  geom_histogram(colour = "white", bins = 30) +
+  facet_wrap(~ gender, ncol = 1)
+```
+
+Not much difference in income between genders
+
+Histogram shows most people have income <= 100k; a couple of extreme values higher than this, for both genders. Right-skewed, may be worth log_transforming this before scaling.
+
+```{r}
+customers %>% 
+  ggplot(aes(x = spending_score_1_100, fill = gender)) + 
+  geom_boxplot()
+```
+
+Male customers have larger spread of spending score; no visual difference in median spending score between genders. Distribution looks ok.
+
+```{r}
+customers %>% 
+  ggplot(aes(x = age, y = annual_income_k, colour = gender)) + 
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+Not much / no correlation between age and income, slight indication that this relationship is affected by gender (income increases with age for female, decrease with age for male)
+
+```{r}
+customers %>% 
+  ggplot(aes(x = annual_income_k, y = spending_score_1_100, colour = gender)) + 
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+Interesting shape in this data - with middle income looking to correlate with middle score, while low/high incomes have higher spread of scores. Might be worth grouping income into 3 bands, and score into 3 bands (high/middle/low).
+
+```{r}
+customers %>% 
+  ggplot(aes(x = age, y = spending_score_1_100, colour = gender)) + 
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+Spending score reduces as age increases, for both genders. Weird shape where higher spending scores drop off after age 40. Note: still have some low spending scores at low ages.
+
+So overall - interesting to look at relationship between spending score and income, and also spending score with age. Maybe some slight differences by gender but not huge interactions.
+
+In terms of scaling, all are on roughly similar scales (0-100) but not exactly, so worth scaling. Also could be useful to log(income) to reduce impact of extreme values.
+
+# 2 
+
+> We are interested in creating a marketing campaign to target customers based on their spending score and annual income. Select an appropriate value for k and perform k-means clustering to find if there are meaningful clusters in the data to target the customers.
+
+Given it looks like there are 3 bands of income for 3 bands of spending score, I will try to look for 3 or 9 clusters, might only be 5 (2 at low income, 1 in middle, 2 at high income, like a bowtie shape).
+
+Even better - test which number to pick - look at all 3 measures (elbow, silhouette, gap_stat) and see if they indicate a common optimum.
+
+Note there are 200 data points, don't want too high a number of clusters because will reduce size of groups as well as make marketing campaign more complex, so try k 1:12.
+
+Step 1: prep data w/ row names and scale
+
+```{r}
+# test if log_income helps with distribution
+customers_log <- customers %>% 
+  mutate(log_income = log(annual_income_k))
+
+customers_log %>% 
+  ggplot(aes(x = annual_income_k)) + 
+  geom_histogram(colour = "white", bins = 30)
+
+customers_log %>% 
+  ggplot(aes(x = log_income)) + 
+  geom_histogram(colour = "white", bins = 30)
+```
+
+Not sure that log(income) is an improvement, now left-skewed and on a different scale to 0-100 like the others. But it does look like a more normal peak and I am going to scale all data so keep it in as log(income).
+
+```{r}
+customers_tidy <- customers_log %>% 
+  column_to_rownames("customer_id") %>% 
+  mutate(across(where(is.numeric), scale)) %>% 
+  #mutate(gender = factor(gender)) %>% 
+  select(-c(age, gender, annual_income_k)) # drop chr col, drop least preferred version of income, drop age because Q asks to model for income and spending score only
+
+customers_tidy
+```
+
+Note kmeans model won't run with a character col, have to drop gender
+
+```{r}
+customers_tidy %>% 
+  summarise(across(everything(),
+                   ~sum(is.na(.x))))
+```
+
+No missing values in data we're passing in to model.
+
+```{r}
+# try k-means clustering for k 1-12
+max_k <- 12
+
+k_clusters <- tibble(k = 1:max_k) %>% 
+  mutate(kclust = map(k, ~ kmeans(customers_tidy, .x, nstart = 25)),
+         tidied = map(kclust, tidy),
+         glanced = map(kclust, glance),
+         augmented = map(kclust, augment, customers_tidy))
+
+k_clusters
+```
+
+```{r}
+# elbow
+glanced <- k_clusters %>% 
+  unnest(glanced)
+
+ggplot(glanced, aes(x = k, y = tot.withinss)) +
+  geom_point() +
+  geom_line() +
+  scale_x_continuous(breaks = seq(1, 12, by = 1))
+```
+
+k = 5 is the clear elbow point here, optimal k by this method
+
+```{r}
+# silhouette
+fviz_nbclust(customers_tidy,
+             kmeans,
+             method = "silhouette",
+             nstart = 25)
+```
+
+silhouette coefficient method suggests optimal k is 5 again
+
+```{r}
+# gap_stat
+fviz_nbclust(customers_tidy,
+             kmeans,
+             method = "gap_stat",
+             nstart = 25,
+             k.max = 10)
+```
+
+gap_stat optimal k is 1, but 5 also looks pretty good
+
+Overall, all 3 methods indicate k = 5 could be optimal
+
+```{r}
+k_5 <- k_clusters %>% 
+  filter(k == 5)
+```
+
+
+need to convert spending score and income back to original form to interpret means
+
+```{r}
+# unnest augmented to label rows with .cluster
+k_5_reformed <- k_5 %>% 
+  unnest(augmented) %>% 
+  # remove other columns
+  select(spending_score_1_100, log_income, .cluster) %>%
+  # rename before binding in orig cols with same names
+  rename(spending_score_scaled = spending_score_1_100,
+         income_scaled = log_income) %>% 
+  # add in original data
+  bind_cols(customers) %>% 
+  select(-c(customer_id))
+```
+
+
+```{r}
+# unnest tidied to see cluster means and size
+k_5_stats <- k_5 %>% 
+  unnest(tidied)
+
+k_5_stats
+```
+
+the largest cluster is cluster 1, with 82 / 200 (41%) customers;
+the smallest clusters are clusters 2 and 3, with 21 / 200 (10.5%) customers each
+
+hard to interpret means without undoing data scaling and transformation...
+
+```{r}
+spending_score_mu <- mean(customers$spending_score_1_100)
+spending_score_sd <- sd(customers$spending_score_1_100)
+log_income_mu <- mean(customers_log$log_income)
+log_income_sd <- sd(customers_log$log_income)
+
+k_5_stats <- k_5_stats %>% 
+  select(3:7) %>% 
+  mutate(spending_score_reform = ((spending_score_1_100* spending_score_sd) + spending_score_mu)) %>% 
+  mutate(income_reform = exp((log_income * log_income_sd) + log_income_mu))
+
+k_5_stats
+```
+
+* Cluster 1 has mean spending score of 49.7, mean annual income of 53.5k
+* Cluster 2 has mean spending score of 19.5, mean annual income of 24.2k
+* Cluster 3 has mean spending score of 80.0, mean annual income of 24.1k
+* Cluster 4 has mean spending score of 82.1, mean annual income of 85.2k
+* Cluster 5 has mean spending score of 18.1, mean annual income of 96.0k
+
+# 3. Visualise the clusters
+
+```{r}
+k_5_reformed %>% 
+  ggplot(aes(x = annual_income_k, y = spending_score_1_100, colour = .cluster)) + 
+  geom_point() +
+  geom_point(x = 53.5, y = 49.7, colour = "black", size = 0.5) + # cluster 1 mean
+  geom_point(x = 24.2, y = 19.5, colour = "black", size = 0.5) + # cluster 2 mean
+  geom_point(x = 24.1, y = 80.0, colour = "black", size = 0.5) + # cluster 3 mean
+  geom_point(x = 85.2, y = 82.1, colour = "black", size = 0.5) + # cluster 2 mean
+  geom_point(x = 96.0, y = 18.1, colour = "black", size = 0.5)+ # cluster 2 mean
+  labs(x = "Annual income (1000s)", y = "Spending score (1-100)",
+       caption = "black dots are cluster means",
+       title = "Clustering mall customers by income and spending score",
+       colour = "Cluster id") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+```
+
+The clustering has formed 5 clusters as per the bow tie shape --> 2 clusters at lower income (one for lower spending score, another for higher spending score), 1 cluster at middle income and middle spending score, and 2 more clusters at higher income (one for lower and one for higher spending score). See the means above also.
+
+(Note: here, I'm plotting with our original unscaled untransformed data.)
+
+# 4 assess fit to data
+
+This clustering model looks like a good fit for the data - it clearly picks out the 5 different groups we could see by visually inspecting this plot earlier, and there is no overlap between groups.
+
+Maybe there will be some customers at the middle edges of the outer clusters who could be in the middle group, and vice versa, but you have to segment somewhere, and this looks good enough!
+
+# 5 attributes of clusters
+
+As above, I'd call the clusters:
+
+* cluster 1 = "the middles" i.e. middle-income middle-spending score
+* cluster 2 = "the lows" i.e. lower income, lower spending score
+* cluster 3 = "the overspenders" i.e. lower income, higher spending score
+* cluster 4 = "the highs" i.e. higher income, higher spending score
+* cluster 5 = "the underspenders" i.e. higher income, lower spending score
+
+BUT I would advise the marketing team to never label marketing campaigns this way, don't want those labels to get accidentally shared with the customers (e.g. via targeted URLs), because they could take offence!
