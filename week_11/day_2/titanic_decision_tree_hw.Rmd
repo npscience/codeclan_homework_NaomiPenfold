@@ -120,6 +120,10 @@ dim(titanic_test)
 
 Check: 570 obs (80% of 712) in training dataset, 142 (20%) in test.
 
+## homework answers
+
+can stratify not just to balance the outcome % but also to balance the potential key predictors, e.g. class, age, etc - this is important for getting good spec and sens
+
 # 4. Make decision tree model
 
 ```{r}
