@@ -280,3 +280,7 @@ As above, I'd call the clusters:
 * cluster 5 = "the underspenders" i.e. higher income, lower spending score
 
 BUT I would advise the marketing team to never label marketing campaigns this way, don't want those labels to get accidentally shared with the customers (e.g. via targeted URLs), because they could take offence!
+
+## homework review
+
+remember this is in one mall, so can relate findings to shops in that mall, maybe specific pattern about this mall and not so general.
